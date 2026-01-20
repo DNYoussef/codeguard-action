@@ -224,36 +224,78 @@ class BundleGenerator:
 
     def _sign_bundle(self, bundle: dict, private_key: str) -> dict:
         """
-        Sign bundle with private key.
+        Sign bundle with the provided private key.
 
-        Note: In production, use proper cryptographic signing (Ed25519 or RSA).
-        This is a placeholder implementation.
+        Supports PEM-encoded Ed25519, RSA, or EC keys when cryptography is
+        available. Falls back to HMAC-SHA256 if cryptography is unavailable.
         """
+        # Create canonical JSON for signing
+        canonical = json.dumps({
+            "bundle_id": bundle["bundle_id"],
+            "hash_chain": bundle["hash_chain"],
+            "summary": bundle["summary"],
+        }, sort_keys=True, separators=(',', ':'))
+        canonical_bytes = canonical.encode()
+
         try:
+            from base64 import b64encode
             from cryptography.hazmat.primitives import hashes, serialization
-            from cryptography.hazmat.primitives.asymmetric import padding, rsa
+            from cryptography.hazmat.primitives.asymmetric import ed25519, padding, rsa, ec
+            from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
-            # Create canonical JSON for signing
-            canonical = json.dumps({
-                "bundle_id": bundle["bundle_id"],
-                "hash_chain": bundle["hash_chain"],
-                "summary": bundle["summary"],
-            }, sort_keys=True, separators=(',', ':'))
+            key = load_pem_private_key(private_key.encode(), password=None)
 
-            # For now, just create a hash-based attestation
-            attestation_hash = hashlib.sha256(canonical.encode()).hexdigest()
+            if isinstance(key, ed25519.Ed25519PrivateKey):
+                signature = key.sign(canonical_bytes)
+                algo = "ed25519"
+            elif isinstance(key, rsa.RSAPrivateKey):
+                signature = key.sign(
+                    canonical_bytes,
+                    padding.PKCS1v15(),
+                    hashes.SHA256()
+                )
+                algo = "rsa-sha256"
+            elif isinstance(key, ec.EllipticCurvePrivateKey):
+                signature = key.sign(
+                    canonical_bytes,
+                    ec.ECDSA(hashes.SHA256())
+                )
+                algo = "ecdsa-sha256"
+            else:
+                raise ValueError("Unsupported key type for signing")
+
+            public_key_bytes = key.public_key().public_bytes(
+                encoding=serialization.Encoding.DER,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            public_fingerprint = hashlib.sha256(public_key_bytes).hexdigest()
 
             return {
-                "type": "sha256_attestation",
+                "type": algo,
                 "signer": "guardspine-codeguard",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "attestation": attestation_hash,
+                "signature": b64encode(signature).decode(),
+                "public_key_fingerprint": public_fingerprint,
             }
         except ImportError:
-            # Fallback if cryptography not available
+            import hmac
+            signature = hmac.new(private_key.encode(), canonical_bytes, hashlib.sha256).hexdigest()
             return {
-                "type": "unsigned",
-                "reason": "cryptography library not available",
+                "type": "hmac-sha256",
+                "signer": "guardspine-codeguard",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "signature": signature,
+                "note": "cryptography library not available; used HMAC-SHA256",
+            }
+        except Exception as exc:
+            import hmac
+            signature = hmac.new(private_key.encode(), canonical_bytes, hashlib.sha256).hexdigest()
+            return {
+                "type": "hmac-sha256",
+                "signer": "guardspine-codeguard",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "signature": signature,
+                "note": f"key parsing failed; used HMAC-SHA256 instead: {exc}",
             }
 
 

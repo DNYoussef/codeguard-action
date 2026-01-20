@@ -311,7 +311,7 @@ class RiskClassifier:
             top_driver = drivers[0]["description"] if drivers else "sensitive code detected"
             return f"High-risk change: {top_driver}. Human approval required."
         else:  # L4
-            critical_findings = [f for f in findings if f.get("severity") == "critical"]
+            critical_findings = [f for f in findings if f.severity == "critical"]
             if critical_findings:
-                return f"Critical risk: {critical_findings[0]['message']}. Executive approval may be required."
+                return f"Critical risk: {critical_findings[0].message}. Executive approval may be required."
             return "Critical risk: security, payment, or PII code affected. Executive approval required."
