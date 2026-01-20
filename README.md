@@ -38,6 +38,46 @@ PR Opened -> CodeGuard analyzes diff -> Risk tier assigned (L0-L4)
 | **L3** | High | Auth, config, sensitive areas | Requires approval |
 | **L4** | Critical | Payments, PII, security, crypto | Requires approval |
 
+---
+
+## Try in 60 Seconds
+
+1. **Add the workflow** to any repo:
+
+```yaml
+# .github/workflows/codeguard.yml
+name: CodeGuard
+on: [pull_request]
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DNYoussef/codeguard-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+2. **Open a PR** - you'll see:
+   - **PR Comment**: Diff Postcard with risk tier and drivers
+   - **Check Status**: Pass/fail based on risk threshold
+   - **Artifact**: `evidence-bundle-prN-abc1234.json` in workflow artifacts
+
+3. **Verify the bundle** (optional):
+```bash
+# Install verifier
+pip install git+https://github.com/DNYoussef/guardspine-verify
+
+# Verify integrity
+guardspine-verify .guardspine/bundle-pr*.json
+# Output: [OK] Hash chain verified
+```
+
+<!-- TODO: Add screenshot of Diff Postcard comment -->
+<!-- ![Diff Postcard Example](docs/diff-postcard-example.png) -->
+
+---
+
 ## Quick Start
 
 Add to your workflow (`.github/workflows/codeguard.yml`):
@@ -56,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: GuardSpine CodeGuard
-        uses: guardspine/codeguard-action@v1
+        uses: DNYoussef/codeguard-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           risk_threshold: L3
@@ -81,21 +121,19 @@ Cryptographically verifiable JSON bundles containing:
 - Risk assessment details
 - Approval records (when applicable)
 
-Verify any bundle independently:
-```bash
-pip install guardspine-verify
-guardspine-verify bundle.json
-```
+Verify any bundle independently - see [Verification](#verification) section below.
 
-### Compliance Rubrics
+### Evidence Mappings for Audit Support
 
-Built-in support for:
-- **SOC 2** - CC6, CC7, CC8 controls
-- **HIPAA** - 164.312 safeguards
-- **PCI-DSS** - Requirements 3, 6, 8
+Pre-built rule sets that map findings to audit frameworks:
+- **SOC 2** - CC6, CC7, CC8 control evidence
+- **HIPAA** - 164.312 safeguard documentation
+- **PCI-DSS** - Requirement 3, 6, 8 evidence exports
+
+> **Note**: These are *evidence mappings* that help document your existing controls - they don't make you compliant by themselves. Always work with your auditors.
 
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     rubric: hipaa  # or: soc2, pci-dss, default
 ```
@@ -105,7 +143,7 @@ Built-in support for:
 Export findings to GitHub Security tab:
 
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     upload_sarif: true
 
@@ -149,7 +187,7 @@ Export findings to GitHub Security tab:
 ### Custom Risk Threshold per Branch
 
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     risk_threshold: ${{ github.base_ref == 'main' && 'L2' || 'L3' }}
 ```
@@ -179,7 +217,7 @@ OpenRouter gives you access to Claude, GPT-4, Gemini, Llama, and 100+ other mode
 
 **Step 3: Use in your workflow**
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
@@ -199,7 +237,7 @@ OpenRouter gives you access to Claude, GPT-4, Gemini, Llama, and 100+ other mode
 #### Option 2: Anthropic Direct
 
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 ```
@@ -207,7 +245,7 @@ OpenRouter gives you access to Claude, GPT-4, Gemini, Llama, and 100+ other mode
 #### Option 3: OpenAI Direct
 
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
@@ -244,7 +282,7 @@ jobs:
         run: |
           curl -X POST http://localhost:11434/api/pull -d '{"name": "llama3.3"}'
 
-      - uses: guardspine/codeguard-action@v1
+      - uses: DNYoussef/codeguard-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           ollama_host: http://localhost:11434
@@ -264,7 +302,7 @@ jobs:
 
 **Remote Ollama server:**
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   with:
     ollama_host: http://your-ollama-server.internal:11434
     ollama_model: llama3.3
@@ -273,7 +311,7 @@ jobs:
 ### Archive Evidence Bundles
 
 ```yaml
-- uses: guardspine/codeguard-action@v1
+- uses: DNYoussef/codeguard-action@v1
   id: codeguard
 
 - uses: actions/upload-artifact@v4
@@ -291,7 +329,7 @@ strategy:
     rubric: [soc2, hipaa, pci-dss]
 
 steps:
-  - uses: guardspine/codeguard-action@v1
+  - uses: DNYoussef/codeguard-action@v1
     with:
       rubric: ${{ matrix.rubric }}
 ```
@@ -329,13 +367,24 @@ Bundles follow the [guardspine-spec](https://github.com/DNYoussef/guardspine-spe
 
 ## Verification
 
-Anyone can verify a bundle without trusting GuardSpine:
+Anyone can verify a bundle without trusting GuardSpine.
+
+### Install Options
 
 ```bash
-# Install verifier
+# Option 1: From Git (always works)
+pip install git+https://github.com/DNYoussef/guardspine-verify
+
+# Option 2: From PyPI (when available)
 pip install guardspine-verify
 
-# Verify bundle integrity
+# Option 3: Docker (zero dependencies)
+docker run --rm -v $(pwd):/data ghcr.io/dnyoussef/guardspine-verify /data/bundle.json
+```
+
+### Verify a Bundle
+
+```bash
 guardspine-verify evidence-bundle.json
 
 # Output:
@@ -343,6 +392,79 @@ guardspine-verify evidence-bundle.json
 # [OK] Final hash matches: abc123...
 # [OK] Bundle integrity confirmed
 ```
+
+## For AI Coding Agents
+
+This section is for AI agents (Claude Code, Codex CLI, Gemini CLI, Aider, etc.) that are asked to set up code governance.
+
+### Agent Installation Instructions
+
+When a user asks you to "add code governance" or "set up GuardSpine", execute these steps:
+
+```bash
+# Step 1: Create workflow file
+mkdir -p .github/workflows
+
+# Step 2: Write the workflow
+cat > .github/workflows/codeguard.yml << 'EOF'
+name: CodeGuard
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DNYoussef/codeguard-action@v1
+        id: codeguard
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          risk_threshold: L3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-bundle
+          path: ${{ steps.codeguard.outputs.bundle_path }}
+EOF
+
+# Step 3: Commit
+git add .github/workflows/codeguard.yml
+git commit -m "Add GuardSpine CodeGuard for PR governance"
+```
+
+### Agent Configuration Options
+
+| User Request | Configuration |
+|--------------|---------------|
+| "strict governance" | `risk_threshold: L2` |
+| "only block critical" | `risk_threshold: L4` |
+| "we're SOC 2" | `rubric: soc2` |
+| "we handle health data" | `rubric: hipaa` |
+| "we process payments" | `rubric: pci-dss` |
+| "use local AI only" | Add `ollama_host: http://localhost:11434` |
+| "use Claude for analysis" | Add `anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}` |
+
+### Agent Behavior Guidelines
+
+1. **Always commit workflow files** - Don't just show the YAML, actually create the file
+2. **Use appropriate rubric** - If the codebase has `/auth`, `/payment`, or health-related code, suggest the matching rubric
+3. **Explain outputs** - Tell the user they'll see PR comments and can find bundles in workflow artifacts
+4. **Don't overclaim** - Say "evidence mappings for audit support" not "makes you compliant"
+
+### Detecting Existing Installation
+
+Before installing, check:
+```bash
+# Check if already installed
+if [ -f .github/workflows/codeguard.yml ]; then
+  echo "CodeGuard already installed"
+  cat .github/workflows/codeguard.yml
+fi
+```
+
+---
 
 ## FAQ
 
