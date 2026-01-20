@@ -47,6 +47,8 @@ def main():
     # Optional AI API keys
     openai_key = get_env("INPUT_OPENAI_API_KEY") or get_env("OPENAI_API_KEY")
     anthropic_key = get_env("INPUT_ANTHROPIC_API_KEY") or get_env("ANTHROPIC_API_KEY")
+    openrouter_key = get_env("INPUT_OPENROUTER_API_KEY") or get_env("OPENROUTER_API_KEY")
+    openrouter_model = get_env("INPUT_OPENROUTER_MODEL", "anthropic/claude-3-haiku")
 
     # GitHub context
     github_event_path = get_env("GITHUB_EVENT_PATH")
@@ -90,7 +92,9 @@ def main():
     print("::group::Analyzing changes")
     analyzer = DiffAnalyzer(
         openai_key=openai_key,
-        anthropic_key=anthropic_key
+        anthropic_key=anthropic_key,
+        openrouter_key=openrouter_key,
+        openrouter_model=openrouter_model
     )
     analysis = analyzer.analyze(diff_content, rubric=rubric)
     print(f"Files changed: {analysis['files_changed']}")

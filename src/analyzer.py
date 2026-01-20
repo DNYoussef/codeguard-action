@@ -34,11 +34,14 @@ class DiffAnalyzer:
         "infra": r"(terraform|kubernetes|docker|aws|azure|gcp|cloudformation)",
     }
 
-    def __init__(self, openai_key: str = None, anthropic_key: str = None):
+    def __init__(self, openai_key: str = None, anthropic_key: str = None,
+                 openrouter_key: str = None, openrouter_model: str = "anthropic/claude-3-haiku"):
         """Initialize analyzer with optional AI backends."""
         self.openai_key = openai_key
         self.anthropic_key = anthropic_key
-        self.ai_enabled = bool(openai_key or anthropic_key)
+        self.openrouter_key = openrouter_key
+        self.openrouter_model = openrouter_model
+        self.ai_enabled = bool(openai_key or anthropic_key or openrouter_key)
 
     def analyze(self, diff_content: str, rubric: str = "default") -> dict[str, Any]:
         """
@@ -149,7 +152,9 @@ class DiffAnalyzer:
     def _generate_ai_summary(self, diff_content: str, sensitive_zones: list) -> dict:
         """Generate AI-powered summary of changes."""
         try:
-            if self.anthropic_key:
+            if self.openrouter_key:
+                return self._openrouter_summary(diff_content, sensitive_zones)
+            elif self.anthropic_key:
                 return self._anthropic_summary(diff_content, sensitive_zones)
             elif self.openai_key:
                 return self._openai_summary(diff_content, sensitive_zones)
@@ -212,6 +217,46 @@ Respond in JSON: {{"summary": "...", "intent": "...", "concerns": [...]}}"""
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=500
+        )
+
+        import json
+        try:
+            return json.loads(response.choices[0].message.content)
+        except:
+            return {"summary": response.choices[0].message.content, "raw": True}
+
+    def _openrouter_summary(self, diff_content: str, sensitive_zones: list) -> dict:
+        """Generate summary using OpenRouter (supports 100+ models)."""
+        import openai
+
+        # OpenRouter uses OpenAI-compatible API with different base URL
+        client = openai.OpenAI(
+            api_key=self.openrouter_key,
+            base_url="https://openrouter.ai/api/v1"
+        )
+
+        prompt = f"""Analyze this code diff and provide:
+1. A one-sentence summary of what changed
+2. The primary intent (feature, bugfix, refactor, config, security)
+3. Any concerns for a security/compliance reviewer
+
+Sensitive zones detected: {len(sensitive_zones)}
+{', '.join(set(z['zone'] for z in sensitive_zones[:5])) if sensitive_zones else 'None'}
+
+Diff (truncated to 4000 chars):
+{diff_content[:4000]}
+
+Respond in JSON format:
+{{"summary": "...", "intent": "...", "concerns": ["...", "..."]}}"""
+
+        response = client.chat.completions.create(
+            model=self.openrouter_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500,
+            extra_headers={
+                "HTTP-Referer": "https://github.com/DNYoussef/codeguard-action",
+                "X-Title": "GuardSpine CodeGuard"
+            }
         )
 
         import json

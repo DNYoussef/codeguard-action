@@ -129,6 +129,8 @@ Export findings to GitHub Security tab:
 | `fail_on_high_risk` | Block merge if over threshold | `true` |
 | `openai_api_key` | OpenAI key for AI summary (optional) | - |
 | `anthropic_api_key` | Anthropic key for AI summary (optional) | - |
+| `openrouter_api_key` | OpenRouter key for AI summary (optional) | - |
+| `openrouter_model` | Model to use with OpenRouter | `anthropic/claude-3-haiku` |
 
 ### Outputs
 
@@ -152,12 +154,59 @@ Export findings to GitHub Security tab:
 
 ### AI-Powered Analysis
 
-Add an AI API key for intelligent diff summarization:
+Add an AI API key for intelligent diff summarization. You have three options:
+
+#### Option 1: OpenRouter (Recommended - 100+ models)
+
+OpenRouter gives you access to Claude, GPT-4, Gemini, Llama, and 100+ other models through a single API.
+
+**Step 1: Get your API key**
+1. Go to [openrouter.ai](https://openrouter.ai/)
+2. Sign up or log in
+3. Navigate to **Keys** in the dashboard
+4. Click **Create Key**
+5. Copy your key (starts with `sk-or-...`)
+
+**Step 2: Add the secret to your GitHub repository**
+1. Go to your repository on GitHub
+2. Click **Settings** > **Secrets and variables** > **Actions**
+3. Click **New repository secret**
+4. Name: `OPENROUTER_API_KEY`
+5. Value: Paste your OpenRouter API key
+6. Click **Add secret**
+
+**Step 3: Use in your workflow**
+```yaml
+- uses: guardspine/codeguard-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    openrouter_model: anthropic/claude-3-haiku  # or any model below
+```
+
+**Popular OpenRouter models:**
+| Model | ID | Best For |
+|-------|-----|----------|
+| Claude 3 Haiku | `anthropic/claude-3-haiku` | Fast, cheap (default) |
+| Claude 3.5 Sonnet | `anthropic/claude-3.5-sonnet` | Best quality |
+| GPT-4o Mini | `openai/gpt-4o-mini` | Good balance |
+| Gemini Flash | `google/gemini-flash-1.5` | Very fast |
+| Llama 3.1 70B | `meta-llama/llama-3.1-70b-instruct` | Open source |
+
+#### Option 2: Anthropic Direct
 
 ```yaml
 - uses: guardspine/codeguard-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+```
+
+#### Option 3: OpenAI Direct
+
+```yaml
+- uses: guardspine/codeguard-action@v1
+  with:
+    openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 ```
 
 ### Archive Evidence Bundles
