@@ -73,8 +73,11 @@ guardspine-verify .guardspine/bundle-pr*.json
 # Output: [OK] Hash chain verified
 ```
 
-<!-- TODO: Add screenshot of Diff Postcard comment -->
-<!-- ![Diff Postcard Example](docs/diff-postcard-example.png) -->
+### Diff Analysis Output
+
+![CodeGuard Diff Analysis](docs/diff-analysis-demo.png)
+
+*Sensitive zones automatically detected in auth and payment code with risk tier assignment*
 
 ---
 
@@ -383,6 +386,10 @@ docker run --rm -v $(pwd):/data ghcr.io/dnyoussef/guardspine-verify /data/bundle
 ```
 
 ### Verify a Bundle
+
+![GuardSpine Verifier](docs/verifier-demo.png)
+
+*Cryptographic verification with evidence summary - no trust required*
 
 ```bash
 guardspine-verify evidence-bundle.json
