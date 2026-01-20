@@ -35,13 +35,16 @@ class DiffAnalyzer:
     }
 
     def __init__(self, openai_key: str = None, anthropic_key: str = None,
-                 openrouter_key: str = None, openrouter_model: str = "anthropic/claude-sonnet-4"):
+                 openrouter_key: str = None, openrouter_model: str = "anthropic/claude-sonnet-4",
+                 ollama_host: str = None, ollama_model: str = "llama3.3"):
         """Initialize analyzer with optional AI backends."""
         self.openai_key = openai_key
         self.anthropic_key = anthropic_key
         self.openrouter_key = openrouter_key
         self.openrouter_model = openrouter_model
-        self.ai_enabled = bool(openai_key or anthropic_key or openrouter_key)
+        self.ollama_host = ollama_host
+        self.ollama_model = ollama_model
+        self.ai_enabled = bool(openai_key or anthropic_key or openrouter_key or ollama_host)
 
     def analyze(self, diff_content: str, rubric: str = "default") -> dict[str, Any]:
         """
@@ -152,7 +155,10 @@ class DiffAnalyzer:
     def _generate_ai_summary(self, diff_content: str, sensitive_zones: list) -> dict:
         """Generate AI-powered summary of changes."""
         try:
-            if self.openrouter_key:
+            # Priority: Ollama (local) > OpenRouter > Anthropic > OpenAI
+            if self.ollama_host:
+                return self._ollama_summary(diff_content, sensitive_zones)
+            elif self.openrouter_key:
                 return self._openrouter_summary(diff_content, sensitive_zones)
             elif self.anthropic_key:
                 return self._anthropic_summary(diff_content, sensitive_zones)
@@ -257,6 +263,50 @@ Respond in JSON format:
                 "HTTP-Referer": "https://github.com/DNYoussef/codeguard-action",
                 "X-Title": "GuardSpine CodeGuard"
             }
+        )
+
+        import json
+        try:
+            return json.loads(response.choices[0].message.content)
+        except:
+            return {"summary": response.choices[0].message.content, "raw": True}
+
+    def _ollama_summary(self, diff_content: str, sensitive_zones: list) -> dict:
+        """Generate summary using Ollama (local/on-prem).
+
+        Ollama provides an OpenAI-compatible API at /v1/chat/completions.
+        No API key required for local installations.
+        """
+        import openai
+
+        # Ollama uses OpenAI-compatible API at /v1
+        base_url = self.ollama_host.rstrip('/')
+        if not base_url.endswith('/v1'):
+            base_url = f"{base_url}/v1"
+
+        client = openai.OpenAI(
+            api_key="ollama",  # Ollama doesn't require a real key
+            base_url=base_url
+        )
+
+        prompt = f"""Analyze this code diff and provide:
+1. A one-sentence summary of what changed
+2. The primary intent (feature, bugfix, refactor, config, security)
+3. Any concerns for a security/compliance reviewer
+
+Sensitive zones detected: {len(sensitive_zones)}
+{', '.join(set(z['zone'] for z in sensitive_zones[:5])) if sensitive_zones else 'None'}
+
+Diff (truncated to 4000 chars):
+{diff_content[:4000]}
+
+Respond in JSON format:
+{{"summary": "...", "intent": "...", "concerns": ["...", "..."]}}"""
+
+        response = client.chat.completions.create(
+            model=self.ollama_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500
         )
 
         import json

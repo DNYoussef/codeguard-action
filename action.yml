@@ -48,6 +48,13 @@ inputs:
     description: 'Model to use with OpenRouter (e.g., anthropic/claude-sonnet-4, google/gemini-3)'
     required: false
     default: 'anthropic/claude-sonnet-4'
+  ollama_host:
+    description: 'Ollama server URL for local/on-prem AI (e.g., http://localhost:11434)'
+    required: false
+  ollama_model:
+    description: 'Model to use with Ollama (e.g., llama3.3, codellama, mistral)'
+    required: false
+    default: 'llama3.3'
 
 outputs:
   risk_tier:

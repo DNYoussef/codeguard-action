@@ -131,6 +131,8 @@ Export findings to GitHub Security tab:
 | `anthropic_api_key` | Anthropic key for AI summary (optional) | - |
 | `openrouter_api_key` | OpenRouter key for AI summary (optional) | - |
 | `openrouter_model` | Model to use with OpenRouter | `anthropic/claude-sonnet-4` |
+| `ollama_host` | Ollama server URL for local AI (optional) | - |
+| `ollama_model` | Model to use with Ollama | `llama3.3` |
 
 ### Outputs
 
@@ -208,6 +210,64 @@ OpenRouter gives you access to Claude, GPT-4, Gemini, Llama, and 100+ other mode
 - uses: guardspine/codeguard-action@v1
   with:
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+```
+
+#### Option 4: Ollama (Local/On-Prem - Air-Gapped)
+
+Ollama runs models locally - no data leaves your infrastructure. Perfect for enterprises with strict data residency requirements.
+
+**Step 1: Install Ollama on your runner**
+
+For self-hosted runners:
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.3
+```
+
+**Step 2: Start Ollama service**
+
+Add a service step before CodeGuard:
+```yaml
+jobs:
+  analyze:
+    runs-on: self-hosted  # or ubuntu-latest with Ollama installed
+    services:
+      ollama:
+        image: ollama/ollama
+        ports:
+          - 11434:11434
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pull model (one-time setup)
+      - name: Pull Ollama model
+        run: |
+          curl -X POST http://localhost:11434/api/pull -d '{"name": "llama3.3"}'
+
+      - uses: guardspine/codeguard-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ollama_host: http://localhost:11434
+          ollama_model: llama3.3
+```
+
+**Popular Ollama models:**
+| Model | ID | Size | Best For |
+|-------|-----|------|----------|
+| Llama 3.3 70B | `llama3.3` | 40GB | Best quality |
+| Llama 3.2 | `llama3.2` | 2GB | Fast, small |
+| CodeLlama | `codellama` | 7GB | Code-focused |
+| Mistral | `mistral` | 4GB | Good balance |
+| Mixtral | `mixtral` | 26GB | MoE architecture |
+| Phi-3 | `phi3` | 2GB | Microsoft's compact |
+| Qwen 2.5 | `qwen2.5` | 4GB | Multilingual |
+
+**Remote Ollama server:**
+```yaml
+- uses: guardspine/codeguard-action@v1
+  with:
+    ollama_host: http://your-ollama-server.internal:11434
+    ollama_model: llama3.3
 ```
 
 ### Archive Evidence Bundles

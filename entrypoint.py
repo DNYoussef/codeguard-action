@@ -50,6 +50,10 @@ def main():
     openrouter_key = get_env("INPUT_OPENROUTER_API_KEY") or get_env("OPENROUTER_API_KEY")
     openrouter_model = get_env("INPUT_OPENROUTER_MODEL", "anthropic/claude-sonnet-4")
 
+    # Ollama for local/on-prem AI (no API key needed)
+    ollama_host = get_env("INPUT_OLLAMA_HOST") or get_env("OLLAMA_HOST")
+    ollama_model = get_env("INPUT_OLLAMA_MODEL", "llama3.3")
+
     # GitHub context
     github_event_path = get_env("GITHUB_EVENT_PATH")
     github_repository = get_env("GITHUB_REPOSITORY")
@@ -94,7 +98,9 @@ def main():
         openai_key=openai_key,
         anthropic_key=anthropic_key,
         openrouter_key=openrouter_key,
-        openrouter_model=openrouter_model
+        openrouter_model=openrouter_model,
+        ollama_host=ollama_host,
+        ollama_model=ollama_model
     )
     analysis = analyzer.analyze(diff_content, rubric=rubric)
     print(f"Files changed: {analysis['files_changed']}")
