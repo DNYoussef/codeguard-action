@@ -48,7 +48,7 @@ def main():
     openai_key = get_env("INPUT_OPENAI_API_KEY") or get_env("OPENAI_API_KEY")
     anthropic_key = get_env("INPUT_ANTHROPIC_API_KEY") or get_env("ANTHROPIC_API_KEY")
     openrouter_key = get_env("INPUT_OPENROUTER_API_KEY") or get_env("OPENROUTER_API_KEY")
-    openrouter_model = get_env("INPUT_OPENROUTER_MODEL", "anthropic/claude-3-haiku")
+    openrouter_model = get_env("INPUT_OPENROUTER_MODEL", "anthropic/claude-sonnet-4")
 
     # GitHub context
     github_event_path = get_env("GITHUB_EVENT_PATH")

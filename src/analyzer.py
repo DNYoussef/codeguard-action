@@ -35,7 +35,7 @@ class DiffAnalyzer:
     }
 
     def __init__(self, openai_key: str = None, anthropic_key: str = None,
-                 openrouter_key: str = None, openrouter_model: str = "anthropic/claude-3-haiku"):
+                 openrouter_key: str = None, openrouter_model: str = "anthropic/claude-sonnet-4"):
         """Initialize analyzer with optional AI backends."""
         self.openai_key = openai_key
         self.anthropic_key = anthropic_key

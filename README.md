@@ -130,7 +130,7 @@ Export findings to GitHub Security tab:
 | `openai_api_key` | OpenAI key for AI summary (optional) | - |
 | `anthropic_api_key` | Anthropic key for AI summary (optional) | - |
 | `openrouter_api_key` | OpenRouter key for AI summary (optional) | - |
-| `openrouter_model` | Model to use with OpenRouter | `anthropic/claude-3-haiku` |
+| `openrouter_model` | Model to use with OpenRouter | `anthropic/claude-sonnet-4` |
 
 ### Outputs
 
@@ -181,17 +181,18 @@ OpenRouter gives you access to Claude, GPT-4, Gemini, Llama, and 100+ other mode
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
     openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-    openrouter_model: anthropic/claude-3-haiku  # or any model below
+    openrouter_model: anthropic/claude-sonnet-4  # or any model below
 ```
 
 **Popular OpenRouter models:**
 | Model | ID | Best For |
 |-------|-----|----------|
-| Claude 3 Haiku | `anthropic/claude-3-haiku` | Fast, cheap (default) |
-| Claude 3.5 Sonnet | `anthropic/claude-3.5-sonnet` | Best quality |
-| GPT-4o Mini | `openai/gpt-4o-mini` | Good balance |
-| Gemini Flash | `google/gemini-flash-1.5` | Very fast |
-| Llama 3.1 70B | `meta-llama/llama-3.1-70b-instruct` | Open source |
+| Claude Opus 4.5 | `anthropic/claude-opus-4.5` | Best reasoning |
+| Claude Sonnet 4 | `anthropic/claude-sonnet-4` | Fast + quality (default) |
+| GPT-4o | `openai/gpt-4o` | Good balance |
+| Gemini 3 | `google/gemini-3` | Google's latest |
+| Codex 5.2 | `openai/codex-5.2` | Code-focused |
+| Llama 3.3 70B | `meta-llama/llama-3.3-70b-instruct` | Open source |
 
 #### Option 2: Anthropic Direct
 

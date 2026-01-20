@@ -45,9 +45,9 @@ inputs:
     description: 'OpenRouter API key for AI-powered analysis (optional) - supports 100+ models'
     required: false
   openrouter_model:
-    description: 'Model to use with OpenRouter (e.g., anthropic/claude-3-haiku, google/gemini-flash-1.5)'
+    description: 'Model to use with OpenRouter (e.g., anthropic/claude-sonnet-4, google/gemini-3)'
     required: false
-    default: 'anthropic/claude-3-haiku'
+    default: 'anthropic/claude-sonnet-4'
 
 outputs:
   risk_tier:
