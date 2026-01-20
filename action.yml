@@ -1,0 +1,67 @@
+name: 'GuardSpine CodeGuard'
+description: 'AI-aware code governance with cryptographically verifiable evidence bundles'
+author: 'GuardSpine'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  risk_threshold:
+    description: 'Risk tier threshold for blocking (L0-L4). Changes at or above this level require approval.'
+    required: false
+    default: 'L3'
+  rubric:
+    description: 'Policy rubric to evaluate against (soc2, hipaa, pci-dss, or path to custom rubric)'
+    required: false
+    default: 'default'
+  github_token:
+    description: 'GitHub token for PR operations'
+    required: true
+    default: ${{ github.token }}
+  post_comment:
+    description: 'Post risk summary as PR comment'
+    required: false
+    default: 'true'
+  generate_bundle:
+    description: 'Generate evidence bundle artifact'
+    required: false
+    default: 'true'
+  upload_sarif:
+    description: 'Upload findings to GitHub Security tab (SARIF)'
+    required: false
+    default: 'false'
+  fail_on_high_risk:
+    description: 'Fail the check if risk exceeds threshold'
+    required: false
+    default: 'true'
+  openai_api_key:
+    description: 'OpenAI API key for AI-powered analysis (optional)'
+    required: false
+  anthropic_api_key:
+    description: 'Anthropic API key for AI-powered analysis (optional)'
+    required: false
+
+outputs:
+  risk_tier:
+    description: 'Assessed risk tier (L0-L4)'
+  risk_drivers:
+    description: 'JSON array of top risk drivers'
+  bundle_path:
+    description: 'Path to generated evidence bundle'
+  findings_count:
+    description: 'Number of policy findings'
+  requires_approval:
+    description: 'Whether human approval is required (true/false)'
+
+runs:
+  using: 'docker'
+  image: 'Dockerfile'
+  args:
+    - ${{ inputs.risk_threshold }}
+    - ${{ inputs.rubric }}
+    - ${{ inputs.github_token }}
+    - ${{ inputs.post_comment }}
+    - ${{ inputs.generate_bundle }}
+    - ${{ inputs.upload_sarif }}
+    - ${{ inputs.fail_on_high_risk }}
