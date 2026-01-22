@@ -55,6 +55,19 @@ inputs:
     description: 'Model to use with Ollama (e.g., llama3.3, codellama, mistral)'
     required: false
     default: 'llama3.3'
+  model_1:
+    description: 'First AI model for L1+ reviews. Format: provider/model or just model name'
+    required: false
+  model_2:
+    description: 'Second AI model for L2+ reviews. Format: provider/model or just model name'
+    required: false
+  model_3:
+    description: 'Third AI model for L3+ reviews. Format: provider/model or just model name'
+    required: false
+  ai_review:
+    description: 'Enable AI-powered code review (requires at least one API key)'
+    required: false
+    default: 'true'
 
 outputs:
   risk_tier:
@@ -67,6 +80,12 @@ outputs:
     description: 'Number of policy findings'
   requires_approval:
     description: 'Whether human approval is required (true/false)'
+  models_used:
+    description: 'Number of AI models that reviewed the change'
+  consensus_risk:
+    description: 'Multi-model consensus: approve, request_changes, or comment'
+  agreement_score:
+    description: 'How much models agreed (0.0-1.0)'
 
 runs:
   using: 'docker'
