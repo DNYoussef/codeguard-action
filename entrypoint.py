@@ -54,6 +54,12 @@ def main():
     ollama_host = get_env("INPUT_OLLAMA_HOST") or get_env("OLLAMA_HOST")
     ollama_model = get_env("INPUT_OLLAMA_MODEL", "llama3.3")
 
+    # Multi-model configuration for tier-based review
+    model_1 = get_env("INPUT_MODEL_1")  # Used for L1+
+    model_2 = get_env("INPUT_MODEL_2")  # Used for L2+
+    model_3 = get_env("INPUT_MODEL_3")  # Used for L3+
+    ai_review = parse_bool(get_env("INPUT_AI_REVIEW", "true"))
+
     # GitHub context
     github_event_path = get_env("GITHUB_EVENT_PATH")
     github_repository = get_env("GITHUB_REPOSITORY")
@@ -100,7 +106,11 @@ def main():
         openrouter_key=openrouter_key,
         openrouter_model=openrouter_model,
         ollama_host=ollama_host,
-        ollama_model=ollama_model
+        ollama_model=ollama_model,
+        model_1=model_1,
+        model_2=model_2,
+        model_3=model_3,
+        ai_review=ai_review
     )
     analysis = analyzer.analyze(diff_content, rubric=rubric)
     print(f"Files changed: {analysis['files_changed']}")
@@ -132,6 +142,14 @@ def main():
     set_output("risk_drivers", json.dumps(risk_drivers))
     set_output("findings_count", str(len(findings)))
     set_output("requires_approval", str(requires_approval).lower())
+
+    # Multi-model outputs
+    models_used = analysis.get("models_used", 0)
+    consensus_risk = analysis.get("consensus_risk", "")
+    agreement_score = analysis.get("agreement_score", 0.0)
+    set_output("models_used", str(models_used))
+    set_output("consensus_risk", consensus_risk)
+    set_output("agreement_score", str(agreement_score))
 
     # Post PR comment
     if post_comment:

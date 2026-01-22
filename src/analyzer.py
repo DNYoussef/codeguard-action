@@ -120,12 +120,15 @@ class DiffAnalyzer:
         openai_key: str = None,
         anthropic_key: str = None,
         openrouter_key: str = None,
+        openrouter_model: str = None,
         ollama_host: str = None,
+        ollama_model: str = None,
         # Model configuration - users can specify up to 3 models
         # Format: "provider/model" or just "model" for ollama
         model_1: str = None,  # Used for L1+
         model_2: str = None,  # Used for L2+
         model_3: str = None,  # Used for L3+
+        ai_review: bool = True,  # Enable/disable AI review
     ):
         """
         Initialize analyzer with flexible multi-model configuration.
@@ -156,7 +159,10 @@ class DiffAnalyzer:
         self.openai_key = openai_key
         self.anthropic_key = anthropic_key
         self.openrouter_key = openrouter_key
+        self.openrouter_model = openrouter_model or "anthropic/claude-sonnet-4"
         self.ollama_host = ollama_host
+        self.ollama_model = ollama_model or "llama3.3"
+        self.ai_review_enabled = ai_review
 
         # Determine which provider to use and build model list
         self.models = []  # List of (provider, model_name) tuples
@@ -183,7 +189,7 @@ class DiffAnalyzer:
             elif openai_key:
                 self.models.append(("openai", self.DEFAULT_MODELS["openai"][0]))
 
-        self.ai_enabled = len(self.models) > 0
+        self.ai_enabled = len(self.models) > 0 and self.ai_review_enabled
         self.max_models_available = len(self.models)
 
     @property
@@ -333,12 +339,23 @@ class DiffAnalyzer:
         use_rubric = preliminary_tier in ("L2", "L3", "L4")
 
         if models_needed > 0 and self.ai_enabled:
-            result["multi_model_review"] = self._run_multi_model_review(
+            multi_review = self._run_multi_model_review(
                 diff_content, sensitive_zones, rubric, models_needed, use_rubric
             )
+            result["multi_model_review"] = multi_review
+
+            # Extract top-level outputs for entrypoint.py
+            result["models_used"] = multi_review.get("models_used", 0)
+            if multi_review.get("consensus"):
+                result["consensus_risk"] = multi_review["consensus"].get("consensus_risk", "")
+                result["agreement_score"] = multi_review["consensus"].get("agreement_score", 0.0)
+            else:
+                result["consensus_risk"] = ""
+                result["agreement_score"] = 0.0
+
             # Legacy compatibility: also include ai_summary from first model
-            if result["multi_model_review"]["reviews"]:
-                first_review = result["multi_model_review"]["reviews"][0]
+            if multi_review.get("reviews"):
+                first_review = multi_review["reviews"][0]
                 result["ai_summary"] = {
                     "summary": first_review.get("summary", ""),
                     "intent": first_review.get("intent", ""),
@@ -351,6 +368,9 @@ class DiffAnalyzer:
                 "tier": preliminary_tier,
                 "reason": "L0 tier - rules-based only" if preliminary_tier == "L0" else "No AI providers configured"
             }
+            result["models_used"] = 0
+            result["consensus_risk"] = ""
+            result["agreement_score"] = 0.0
 
         return result
 
