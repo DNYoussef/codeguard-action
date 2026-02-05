@@ -3,8 +3,15 @@ Risk Classifier - Assigns risk tiers (L0-L4) based on analysis.
 """
 
 import re
+from pathlib import Path
 from typing import Any
 from dataclasses import dataclass
+
+import yaml
+
+
+# Directory containing built-in rubric files
+BUILTIN_RUBRICS_DIR = Path(__file__).parent.parent / "rubrics"
 
 
 @dataclass
@@ -58,31 +65,98 @@ class RiskClassifier:
         ],
     }
 
-    # Rubric-specific rules
-    RUBRICS = {
-        "default": {},
-        "soc2": {
-            "CC6.1": {"pattern": r"(auth|access|permission)", "severity": "high", "message": "Change management control affected"},
-            "CC6.2": {"pattern": r"(user|account|provision)", "severity": "medium", "message": "Access provisioning affected"},
-            "CC7.1": {"pattern": r"(CVE|vulnerab|patch|security)", "severity": "critical", "message": "Vulnerability management"},
-            "CC8.1": {"pattern": r"(terraform|kubernetes|docker|infra)", "severity": "high", "message": "Infrastructure change"},
-        },
-        "hipaa": {
-            "164.312.a": {"pattern": r"(phi|patient|medical|health)", "severity": "critical", "message": "PHI access control affected"},
-            "164.312.b": {"pattern": r"(audit|log|trail)", "severity": "high", "message": "Audit control affected"},
-            "164.312.e": {"pattern": r"(encrypt|tls|ssl|https)", "severity": "critical", "message": "Transmission security"},
-        },
-        "pci-dss": {
-            "3.4": {"pattern": r"(pan|card.number|credit)", "severity": "critical", "message": "Cardholder data handling"},
-            "6.5": {"pattern": r"(sql|inject|xss|csrf)", "severity": "critical", "message": "Secure coding requirement"},
-            "8.3": {"pattern": r"(password|mfa|auth)", "severity": "high", "message": "Authentication control"},
-        },
-    }
-
-    def __init__(self, rubric: str = "default"):
-        """Initialize classifier with rubric."""
+    def __init__(self, rubric: str = "default", repo_root: str | Path | None = None):
+        """
+        Initialize classifier with rubric.
+        
+        Args:
+            rubric: Name of the rubric to load (e.g., "default", "soc2", "hipaa")
+            repo_root: Path to the repository root. If provided, rubrics will be
+                      searched in the repo's .codeguard/rubrics/ or rubrics/ 
+                      directories before falling back to built-in rubrics.
+        """
         self.rubric = rubric
-        self.rubric_rules = self.RUBRICS.get(rubric, {})
+        self.repo_root = Path(repo_root) if repo_root else None
+        self.rubric_rules = self._load_rubric(rubric)
+
+    def _load_rubric(self, rubric: str) -> dict[str, dict]:
+        """
+        Load rubric rules from YAML file.
+        
+        Search order:
+        1. <repo_root>/.codeguard/rubrics/<rubric>.yaml
+        2. <repo_root>/rubrics/<rubric>.yaml  
+        3. Built-in: rubrics/builtin/<rubric>.yaml
+        4. Built-in: rubrics/builtin/<rubric>-*.yaml (partial match)
+        5. Built-in: rubrics/<rubric>.yaml
+        
+        Returns dict mapping rule_id to {pattern, severity, message}.
+        """
+        rules = {}
+        candidates = []
+        
+        # Check repository-local rubrics first
+        if self.repo_root:
+            repo_rubric_dirs = [
+                self.repo_root / ".codeguard" / "rubrics",
+                self.repo_root / ".github" / "codeguard" / "rubrics",
+                self.repo_root / "rubrics",
+            ]
+            for rubric_dir in repo_rubric_dirs:
+                candidates.append(rubric_dir / f"{rubric}.yaml")
+                candidates.append(rubric_dir / f"{rubric}.yml")
+        
+        # Built-in rubrics (exact match first)
+        candidates.extend([
+            BUILTIN_RUBRICS_DIR / "builtin" / f"{rubric}.yaml",
+            BUILTIN_RUBRICS_DIR / f"{rubric}.yaml",
+        ])
+        
+        # Also check for partial matches in builtin (e.g., "soc2" matches "soc2-controls.yaml")
+        builtin_dir = BUILTIN_RUBRICS_DIR / "builtin"
+        if builtin_dir.exists():
+            for f in builtin_dir.glob(f"{rubric}*.yaml"):
+                if f not in candidates:
+                    candidates.append(f)
+            for f in builtin_dir.glob(f"*{rubric}*.yaml"):
+                if f not in candidates:
+                    candidates.append(f)
+        
+        # Find first existing file
+        rubric_file = None
+        for candidate in candidates:
+            if candidate.exists():
+                rubric_file = candidate
+                break
+        
+        if rubric_file is None:
+            return rules
+        
+        try:
+            with open(rubric_file, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f)
+        except (yaml.YAMLError, OSError):
+            return rules
+        
+        if not data or "rules" not in data:
+            return rules
+        
+        for rule in data.get("rules", []):
+            rule_id = rule.get("id", "")
+            patterns = rule.get("patterns", [])
+            severity = rule.get("severity", "medium")
+            message = rule.get("description") or rule.get("name", "Policy violation")
+            
+            if rule_id and patterns:
+                # Combine patterns with OR
+                combined_pattern = "|".join(f"({p})" for p in patterns)
+                rules[rule_id] = {
+                    "pattern": combined_pattern,
+                    "severity": severity,
+                    "message": message,
+                }
+        
+        return rules
 
     def classify(self, analysis: dict[str, Any]) -> dict[str, Any]:
         """

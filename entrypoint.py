@@ -120,7 +120,11 @@ def main():
 
     # Classify risk
     print("::group::Classifying risk")
-    classifier = RiskClassifier(rubric=rubric)
+    github_workspace = get_env("GITHUB_WORKSPACE")
+    if not github_workspace or not Path(github_workspace).exists():
+        print("::error::GITHUB_WORKSPACE is not set - cannot locate repository root for rubric loading")
+        sys.exit(1)
+    classifier = RiskClassifier(rubric=rubric, repo_root=github_workspace)
     risk_result = classifier.classify(analysis)
     risk_tier = risk_result["risk_tier"]
     risk_drivers = risk_result["risk_drivers"]
