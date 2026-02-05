@@ -1,0 +1,334 @@
+# Finance Policy Pack (SOX-adjacent)
+# Covers SEC reporting, fintech ops, controllers, financial controls
+# Version: 0.9.0
+
+pack_id: finance-v0.9
+name: Finance (SOX-adjacent)
+version: "0.9.0"
+vertical: finance
+description: |
+  Policy pack for SEC reporting, fintech operations, and financial controls.
+  Covers reporting integrity, materiality, segregation of duties, and audit trail.
+  Maps to control themes (not compliance certifications).
+attribution: GuardSpine Core
+enabled: true
+enforcement_mode: warn
+
+# Scoring Model
+scoring_model:
+  dimensions:
+    - name: Materiality
+      max_score: 45
+      description: "Could this change alter reported numbers or decisions?"
+      weight: 1.0
+    - name: IntegrityRisk
+      max_score: 35
+      description: "Complexity, manual overrides, macros, AI edits"
+      weight: 1.0
+    - name: DistributionRisk
+      max_score: 20
+      description: "Board/external/regulator exposure"
+      weight: 1.0
+  bands:
+    - min_score: 0
+      max_score: 19
+      severity: informational
+      label: Informational
+    - min_score: 20
+      max_score: 39
+      severity: low
+      label: Low
+    - min_score: 40
+      max_score: 59
+      severity: medium
+      label: Medium
+    - min_score: 60
+      max_score: 79
+      severity: high
+      label: High
+    - min_score: 80
+      max_score: 100
+      severity: critical
+      label: Critical
+
+# Triggers by Artifact Type
+triggers:
+  # ----- CODE TRIGGERS -----
+  - trigger_id: finance-calc-logic
+    artifact_kind: code
+    signal_level: high
+    category: calculation_changes
+    keywords: ["revenue", "calculation", "financial", "accounting", "recognition"]
+    description: "Logic affecting financial calculations/revenue recognition"
+    finding_type: control
+
+  - trigger_id: finance-reporting-pipeline
+    artifact_kind: code
+    signal_level: high
+    category: reporting_changes
+    keywords: ["etl", "reporting", "aggregation", "rounding", "pipeline"]
+    description: "Reporting pipeline changes (ETL, aggregation, rounding)"
+    finding_type: control
+
+  - trigger_id: finance-access-permission
+    artifact_kind: code
+    signal_level: high
+    category: auth_changes
+    keywords: ["permission", "access", "role", "financial_data"]
+    description: "Access/permission changes on financial data systems"
+    finding_type: control
+
+  - trigger_id: finance-logging-disabled
+    artifact_kind: code
+    signal_level: high
+    category: logging_changes
+    keywords: ["audit", "log", "trace"]
+    pattern: "(logger|audit)\\.(disable|remove)"
+    description: "Logging/audit trail disabled in finance systems"
+    finding_type: control
+
+  - trigger_id: finance-dependency-reporting
+    artifact_kind: code
+    signal_level: medium
+    category: dependency_changes
+    keywords: ["package.json", "requirements.txt", "reporting_service"]
+    description: "Dependency updates in reporting services"
+    finding_type: opinionated
+
+  - trigger_id: finance-prompt-automation
+    artifact_kind: code
+    signal_level: medium
+    category: ai_integration
+    keywords: ["prompt", "llm", "gpt", "claude", "financial_report"]
+    description: "Prompt/tool automation for finance outputs"
+    finding_type: opinionated
+
+  # ----- PDF TRIGGERS -----
+  - trigger_id: finance-forward-looking
+    artifact_kind: pdf
+    signal_level: high
+    category: forward_looking
+    keywords: ["will", "expect", "anticipate", "project", "forecast"]
+    pattern: "\\b(will|expect|anticipate|project|forecast)\\b.*\\b(revenue|growth|profit)\\b"
+    description: "Forward-looking statements language changed"
+    finding_type: control
+
+  - trigger_id: finance-metrics-definitions
+    artifact_kind: pdf
+    signal_level: high
+    category: metrics_definitions
+    keywords: ["arr", "mrr", "churn", "ebitda", "revenue recognition", "gaap"]
+    description: "Metrics definitions changed (ARR, churn, EBITDA)"
+    finding_type: control
+
+  - trigger_id: finance-risk-factors
+    artifact_kind: pdf
+    signal_level: high
+    category: risk_factors
+    keywords: ["risk factor", "material risk", "uncertainty"]
+    description: "Risk factor language changed"
+    finding_type: control
+
+  - trigger_id: finance-external-refs
+    artifact_kind: pdf
+    signal_level: high
+    category: external_links
+    pattern: "https?://[^\\s]+"
+    description: "External references/links added"
+    finding_type: control
+
+  - trigger_id: finance-signature-attestation
+    artifact_kind: pdf
+    signal_level: high
+    category: signature_changes
+    keywords: ["signature", "attestation", "certified", "approved by", "cfo", "ceo"]
+    description: "Signature/attestation block changed"
+    finding_type: control
+
+  - trigger_id: finance-table-reformatting
+    artifact_kind: pdf
+    signal_level: medium
+    category: table_changes
+    keywords: ["table", "figure", "chart"]
+    description: "Reformatting of tables that could change interpretation"
+    finding_type: opinionated
+
+  - trigger_id: finance-chart-source
+    artifact_kind: pdf
+    signal_level: medium
+    category: chart_changes
+    keywords: ["chart", "graph", "visualization"]
+    description: "Charts updated without traceable source mapping"
+    finding_type: opinionated
+
+  # ----- XLSX TRIGGERS -----
+  - trigger_id: finance-formula-core
+    artifact_kind: xlsx
+    signal_level: high
+    category: formula_changes
+    pattern: "^=.*SUM|VLOOKUP|INDEX|MATCH"
+    description: "Formula changes in core metric tabs"
+    finding_type: control
+
+  - trigger_id: finance-macro-vba
+    artifact_kind: xlsx
+    signal_level: high
+    category: macro_changes
+    keywords: ["vba", "macro", "script"]
+    description: "Macro/VBA added/changed"
+    finding_type: control
+
+  - trigger_id: finance-external-data
+    artifact_kind: xlsx
+    signal_level: high
+    category: external_connections
+    keywords: ["powerquery", "odbc", "linked", "connection"]
+    description: "External data connections added"
+    finding_type: control
+
+  - trigger_id: finance-hidden-sheets
+    artifact_kind: xlsx
+    signal_level: high
+    category: hidden_content
+    keywords: ["hidden", "very hidden"]
+    description: "Hidden sheets added/changed"
+    finding_type: control
+
+  - trigger_id: finance-manual-override
+    artifact_kind: xlsx
+    signal_level: high
+    category: manual_overrides
+    keywords: ["hardcode", "override", "manual"]
+    description: "Manual overrides introduced (hardcoding over formulas)"
+    finding_type: control
+
+  - trigger_id: finance-pivot-changes
+    artifact_kind: xlsx
+    signal_level: medium
+    category: pivot_changes
+    keywords: ["pivot", "pivottable"]
+    description: "Pivot definition changes"
+    finding_type: opinionated
+
+  - trigger_id: finance-validation-changes
+    artifact_kind: xlsx
+    signal_level: medium
+    category: validation_changes
+    keywords: ["validation", "data validation"]
+    description: "Data validation changes"
+    finding_type: opinionated
+
+  - trigger_id: finance-chart-source-range
+    artifact_kind: xlsx
+    signal_level: medium
+    category: chart_changes
+    keywords: ["chart", "source range"]
+    description: "Chart source ranges changed"
+    finding_type: opinionated
+
+# Escalation Rules
+escalation_rules:
+  - level: L0
+    score_min: 0
+    score_max: 19
+    required_approvers: []
+    conditions:
+      - "Cosmetic changes to internal docs (no numbers/claims)"
+      - "Code comments, non-executable formatting"
+    evidence_requirements: []
+
+  - level: L1
+    score_min: 20
+    score_max: 39
+    required_approvers: ["owner"]
+    conditions:
+      - "Narrative edits not touching claims/metrics"
+      - "XLSX layout changes no formulas/macros/connections"
+    evidence_requirements:
+      - "Change summary"
+
+  - level: L2
+    score_min: 40
+    score_max: 59
+    required_approvers: ["owner", "peer_reviewer"]
+    conditions:
+      - "Formula changes on non-core tabs"
+      - "Deck chart refresh that is fully mapped to workbook sources"
+      - "Code changes in reporting services with tests + reconciliation evidence"
+    evidence_requirements:
+      - "PR diff snapshot"
+      - "Reconciliation report"
+      - "Test results"
+
+  - level: L3
+    score_min: 60
+    score_max: 79
+    required_approvers: ["controller", "compliance_legal"]
+    conditions:
+      - "Any change to core KPI formulas or model structure"
+      - "Any macro introduction/modification"
+      - "Any change to metrics definitions / risk language / forward-looking statements"
+      - "Any deck number without verified source mapping"
+    evidence_requirements:
+      - "Formula lineage map"
+      - "Numeric consistency report (deck vs workbook)"
+      - "Risk driver report"
+
+  - level: L4
+    score_min: 80
+    score_max: 100
+    required_approvers: ["controller", "legal", "release_manager"]
+    conditions:
+      - "Changes to external-facing financial disclosures OR board materials with material metrics"
+      - "Changes that impact close process controls AND distribution to board/external stakeholders"
+    evidence_requirements:
+      - "Full evidence bundle with verification"
+      - "Explicit rationale"
+      - "Release gate verification"
+
+# Evidence Requirements by Artifact Type
+evidence_requirements:
+  - artifact_kind: code
+    required_items:
+      - "Diff + affected modules list"
+      - "Reconciliation report (old vs new calc outputs on sample data)"
+      - "Test results"
+      - "Approval log + bundle hash"
+
+  - artifact_kind: pdf
+    required_items:
+      - "Slide/page diff gallery + diff postcard"
+      - "Claims list extracted with cell anchors"
+      - "Numeric consistency report (deck vs workbook)"
+      - "Approval log + bundle hash"
+
+  - artifact_kind: xlsx
+    required_items:
+      - "Formula lineage map (inputs to outputs)"
+      - "Changed-cells + formula diff"
+      - "Macro inventory + diff"
+      - "External connection inventory"
+      - "Recalc determinism check (same inputs reproduce outputs)"
+      - "Approval log + bundle hash"
+
+# Control Mappings (non-overclaim)
+control_mappings:
+  - theme: "Financial Change Management"
+    trigger_categories: ["calculation_changes", "reporting_changes"]
+    description: "Controls for governed updates to financial systems"
+
+  - theme: "Integrity of Reporting"
+    trigger_categories: ["formula_changes", "metrics_definitions", "manual_overrides"]
+    description: "Controls for reporting integrity, source mapping, reconciliation"
+
+  - theme: "Segregation of Duties"
+    trigger_categories: ["auth_changes"]
+    description: "Controls for multi-approver gates and role separation"
+
+  - theme: "Auditability / Traceability"
+    trigger_categories: ["logging_changes", "signature_changes"]
+    description: "Controls for bundle verification, timestamps, audit trail"
+
+  - theme: "External Communications Risk"
+    trigger_categories: ["forward_looking", "external_links", "risk_factors"]
+    description: "Controls for forward-looking language and external disclosures"

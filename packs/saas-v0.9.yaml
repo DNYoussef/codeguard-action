@@ -1,0 +1,322 @@
+# General SaaS Policy Pack (SOC2-ish)
+# Default pack for mid-market B2B SaaS operational governance
+# Version: 0.9.0
+
+pack_id: saas-v0.9
+name: General SaaS (SOC2-ish)
+version: "0.9.0"
+vertical: saas
+description: |
+  Default policy pack for mid-market B2B SaaS.
+  Covers operational governance, security controls, and change management.
+  Maps to control themes (not compliance certifications).
+attribution: GuardSpine Core
+enabled: true
+enforcement_mode: warn
+
+# Scoring Model
+scoring_model:
+  dimensions:
+    - name: SecurityPrivacyImpact
+      max_score: 40
+      description: "User data, auth, privacy posture impact"
+      weight: 1.0
+    - name: OperationalRisk
+      max_score: 30
+      description: "Stability, regressions, brittle automation"
+      weight: 1.0
+    - name: ExternalExposure
+      max_score: 30
+      description: "Customer-facing, vendor-facing, public exposure"
+      weight: 1.0
+  bands:
+    - min_score: 0
+      max_score: 19
+      severity: informational
+      label: Informational
+    - min_score: 20
+      max_score: 39
+      severity: low
+      label: Low
+    - min_score: 40
+      max_score: 59
+      severity: medium
+      label: Medium
+    - min_score: 60
+      max_score: 79
+      severity: high
+      label: High
+    - min_score: 80
+      max_score: 100
+      severity: critical
+      label: Critical
+
+# Triggers by Artifact Type
+triggers:
+  # ----- CODE TRIGGERS -----
+  - trigger_id: saas-authz-authn
+    artifact_kind: code
+    signal_level: high
+    category: auth_changes
+    keywords: ["auth", "login", "permission", "token", "session", "oauth", "jwt"]
+    description: "Authz/authn changes"
+    finding_type: control
+
+  - trigger_id: saas-data-access-export
+    artifact_kind: code
+    signal_level: high
+    category: data_handling
+    keywords: ["export", "download", "user_data", "pii", "personal"]
+    description: "Data access and export changes"
+    finding_type: control
+
+  - trigger_id: saas-secrets-config
+    artifact_kind: code
+    signal_level: high
+    category: secrets_handling
+    keywords: ["secret", "api_key", "credential", "config", "env"]
+    pattern: "(API_KEY|SECRET|PASSWORD|TOKEN)\\s*="
+    description: "Secrets/config changes"
+    finding_type: control
+
+  - trigger_id: saas-logging-telemetry
+    artifact_kind: code
+    signal_level: high
+    category: logging_changes
+    keywords: ["logger", "telemetry", "monitoring"]
+    pattern: "(logger|telemetry)\\.(disable|remove)"
+    description: "Logging/telemetry removed"
+    finding_type: control
+
+  - trigger_id: saas-supply-chain
+    artifact_kind: code
+    signal_level: high
+    category: dependency_changes
+    keywords: ["package.json", "requirements.txt", "go.mod", "Cargo.toml", "pom.xml"]
+    description: "Supply chain changes (critical deps, build pipeline)"
+    finding_type: control
+
+  - trigger_id: saas-dependency-bump
+    artifact_kind: code
+    signal_level: medium
+    category: dependency_changes
+    keywords: ["upgrade", "bump", "update"]
+    description: "Dependency bumps"
+    finding_type: opinionated
+
+  - trigger_id: saas-feature-flag
+    artifact_kind: code
+    signal_level: medium
+    category: feature_flags
+    keywords: ["feature_flag", "feature_toggle", "launchdarkly", "flag"]
+    description: "Feature flag changes"
+    finding_type: opinionated
+
+  - trigger_id: saas-prompt-tool
+    artifact_kind: code
+    signal_level: medium
+    category: ai_integration
+    keywords: ["prompt", "openai", "anthropic", "llm", "tool"]
+    description: "Prompt/tool integration for production workflows"
+    finding_type: opinionated
+
+  # ----- PDF TRIGGERS -----
+  - trigger_id: saas-external-link
+    artifact_kind: pdf
+    signal_level: high
+    category: external_links
+    pattern: "https?://[^\\s]+"
+    description: "External link added"
+    finding_type: control
+
+  - trigger_id: saas-security-privacy-policy
+    artifact_kind: pdf
+    signal_level: high
+    category: policy_changes
+    keywords: ["privacy policy", "security policy", "data handling", "gdpr", "ccpa"]
+    description: "Security/privacy policy language changed"
+    finding_type: control
+
+  - trigger_id: saas-sla-contract
+    artifact_kind: pdf
+    signal_level: high
+    category: contract_changes
+    keywords: ["sla", "service level", "contract", "terms of service", "agreement"]
+    description: "SLA/contract terms changed"
+    finding_type: control
+
+  - trigger_id: saas-signature-block
+    artifact_kind: pdf
+    signal_level: high
+    category: signature_changes
+    keywords: ["signature", "attestation", "signed", "approved"]
+    description: "Signature/attestation block changed"
+    finding_type: control
+
+  - trigger_id: saas-tables-figures
+    artifact_kind: pdf
+    signal_level: medium
+    category: table_changes
+    keywords: ["table", "figure", "data"]
+    description: "Tables/figures changed"
+    finding_type: opinionated
+
+  - trigger_id: saas-data-handling-section
+    artifact_kind: pdf
+    signal_level: medium
+    category: data_handling_docs
+    keywords: ["how we handle", "data processing", "data retention"]
+    description: "How we handle data sections edited"
+    finding_type: opinionated
+
+  # ----- XLSX TRIGGERS -----
+  - trigger_id: saas-macro-introduced
+    artifact_kind: xlsx
+    signal_level: high
+    category: macro_changes
+    keywords: ["vba", "macro", "script"]
+    description: "Macros introduced"
+    finding_type: control
+
+  - trigger_id: saas-external-connection
+    artifact_kind: xlsx
+    signal_level: high
+    category: external_connections
+    keywords: ["powerquery", "odbc", "linked", "web"]
+    description: "External connections added"
+    finding_type: control
+
+  - trigger_id: saas-formula-pricing
+    artifact_kind: xlsx
+    signal_level: high
+    category: formula_changes
+    keywords: ["pricing", "revenue", "cost"]
+    pattern: "^=.*SUM|PRODUCT"
+    description: "Formula changes in pricing/revenue tabs"
+    finding_type: control
+
+  - trigger_id: saas-external-share
+    artifact_kind: xlsx
+    signal_level: high
+    category: sharing_changes
+    keywords: ["share", "external", "link", "public"]
+    description: "External share/link created"
+    finding_type: control
+
+  - trigger_id: saas-pivot-charts
+    artifact_kind: xlsx
+    signal_level: medium
+    category: pivot_changes
+    keywords: ["pivot", "chart"]
+    description: "Pivots/charts changed"
+    finding_type: opinionated
+
+  - trigger_id: saas-data-validation
+    artifact_kind: xlsx
+    signal_level: medium
+    category: validation_changes
+    keywords: ["validation", "dropdown", "list"]
+    description: "Data validation changes"
+    finding_type: opinionated
+
+# Escalation Rules
+escalation_rules:
+  - level: L0
+    score_min: 0
+    score_max: 19
+    required_approvers: []
+    conditions:
+      - "Cosmetic edits, no behavior/data meaning change"
+    evidence_requirements: []
+
+  - level: L1
+    score_min: 20
+    score_max: 39
+    required_approvers: ["owner"]
+    conditions:
+      - "Low-risk edits, internal-only, no sensitive triggers"
+    evidence_requirements:
+      - "Change summary"
+
+  - level: L2
+    score_min: 40
+    score_max: 59
+    required_approvers: ["owner", "peer_reviewer"]
+    conditions:
+      - "Medium-risk: pricing formulas, non-prod config changes"
+      - "Policy wording not in sensitive zones"
+    evidence_requirements:
+      - "PR diff snapshot"
+      - "Test results"
+
+  - level: L3
+    score_min: 60
+    score_max: 79
+    required_approvers: ["security_delegate", "owner"]
+    conditions:
+      - "Auth/data export changes"
+      - "External link added to policy/contract docs"
+      - "XLSX macros/connections introduced"
+      - "Any artifact shared externally that lacks an evidence bundle"
+    evidence_requirements:
+      - "Risk driver report"
+      - "Test results with coverage"
+      - "Security review notes"
+
+  - level: L4
+    score_min: 80
+    score_max: 100
+    required_approvers: ["security_lead", "business_owner", "release_manager"]
+    conditions:
+      - "Anything customer-facing that changes privacy/security commitments"
+      - "Any release gated by L3 findings unresolved"
+      - "High-risk data movement + low confidence"
+    evidence_requirements:
+      - "Full evidence bundle"
+      - "Security sign-off"
+      - "Release gate verification"
+
+# Evidence Requirements by Artifact Type
+evidence_requirements:
+  - artifact_kind: code
+    required_items:
+      - "PR diff snapshot"
+      - "Risk drivers + score"
+      - "Test results"
+      - "Approval log + bundle hash"
+
+  - artifact_kind: pdf
+    required_items:
+      - "Diff postcard for PDFs"
+      - "Risk drivers + score"
+      - "Approval log + bundle hash"
+
+  - artifact_kind: xlsx
+    required_items:
+      - "Changed-cells + formula diff"
+      - "Macro inventory"
+      - "External connection inventory"
+      - "Risk drivers + score"
+      - "Approval log + bundle hash"
+
+# Control Mappings (non-overclaim)
+control_mappings:
+  - theme: "Change Management"
+    trigger_categories: ["feature_flags", "dependency_changes"]
+    description: "Controls for governed change management and approvals"
+
+  - theme: "Access Control"
+    trigger_categories: ["auth_changes"]
+    description: "Controls for authorization and authentication changes"
+
+  - theme: "Data Handling"
+    trigger_categories: ["data_handling", "external_connections", "sharing_changes"]
+    description: "Controls for data export, transmission, and sharing"
+
+  - theme: "Security Monitoring"
+    trigger_categories: ["logging_changes", "policy_changes"]
+    description: "Controls for security posture and monitoring"
+
+  - theme: "Vendor/External Risk"
+    trigger_categories: ["external_links", "contract_changes"]
+    description: "Controls for external sharing and customer-facing commitments"

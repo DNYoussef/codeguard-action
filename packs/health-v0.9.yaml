@@ -1,0 +1,331 @@
+# Health Policy Pack (HIPAA-adjacent)
+# Covers clinical ops, provider workflows, digital health, PHI handling
+# Version: 0.9.0
+
+pack_id: health-v0.9
+name: Health (HIPAA-adjacent)
+version: "0.9.0"
+vertical: health
+description: |
+  Policy pack for healthcare, clinical operations, and digital health.
+  Covers PHI handling, patient consent, audit logging, and clinical documentation.
+  Maps to control themes (not compliance certifications).
+attribution: GuardSpine Core
+enabled: true
+enforcement_mode: warn
+
+# Scoring Model
+scoring_model:
+  dimensions:
+    - name: Impact
+      max_score: 40
+      description: "Potential harm if wrong (patient impact, regulatory, contractual)"
+      weight: 1.0
+    - name: Likelihood
+      max_score: 35
+      description: "How likely this change introduces error/misuse"
+      weight: 1.0
+    - name: Exposure
+      max_score: 25
+      description: "How widely distributed / who can access / external transmission"
+      weight: 1.0
+  bands:
+    - min_score: 0
+      max_score: 19
+      severity: informational
+      label: Informational
+    - min_score: 20
+      max_score: 39
+      severity: low
+      label: Low
+    - min_score: 40
+      max_score: 59
+      severity: medium
+      label: Medium
+    - min_score: 60
+      max_score: 79
+      severity: high
+      label: High
+    - min_score: 80
+      max_score: 100
+      severity: critical
+      label: Critical
+
+# Triggers by Artifact Type
+triggers:
+  # ----- CODE TRIGGERS -----
+  - trigger_id: health-auth-role-check
+    artifact_kind: code
+    signal_level: high
+    category: auth_changes
+    keywords: ["rbac", "abac", "role", "permission", "access_control"]
+    description: "Auth/role checks changed (RBAC/ABAC paths)"
+    finding_type: control
+
+  - trigger_id: health-logging-audit
+    artifact_kind: code
+    signal_level: high
+    category: logging_changes
+    keywords: ["audit", "audit_log", "hipaa_log"]
+    pattern: "(logger|logging|audit)\\.(disable|remove|delete)"
+    description: "Logging changed (audit logs disabled, fields removed)"
+    finding_type: control
+
+  - trigger_id: health-phi-data-handling
+    artifact_kind: code
+    signal_level: high
+    category: phi_handling
+    keywords: ["phi", "patient", "health_record", "medical_record", "hipaa"]
+    description: "Data handling changes touching PHI fields"
+    finding_type: control
+
+  - trigger_id: health-external-transmission
+    artifact_kind: code
+    signal_level: high
+    category: external_transmission
+    keywords: ["webhook", "third_party", "external_api", "transmission"]
+    pattern: "https?://.*external|third.?party"
+    description: "External transmission changes (webhooks, third-party APIs)"
+    finding_type: control
+
+  - trigger_id: health-encryption-key
+    artifact_kind: code
+    signal_level: high
+    category: encryption_changes
+    keywords: ["encrypt", "decrypt", "key_management", "kms", "cipher"]
+    description: "Encryption / key management changes"
+    finding_type: control
+
+  - trigger_id: health-phi-dependency
+    artifact_kind: code
+    signal_level: medium
+    category: dependency_changes
+    keywords: ["package.json", "requirements.txt", "phi_service"]
+    description: "Dependency updates in PHI-touching services"
+    finding_type: control
+
+  - trigger_id: health-prompt-phi
+    artifact_kind: code
+    signal_level: medium
+    category: ai_integration
+    keywords: ["prompt", "llm", "openai", "anthropic", "phi_workflow"]
+    description: "Prompt/tool integrations for PHI workflows"
+    finding_type: opinionated
+
+  # ----- PDF TRIGGERS -----
+  - trigger_id: health-consent-language
+    artifact_kind: pdf
+    signal_level: high
+    category: consent_changes
+    keywords: ["consent", "patient consent", "authorization", "patient rights"]
+    description: "Patient consent language changed"
+    finding_type: control
+
+  - trigger_id: health-disclosure-section
+    artifact_kind: pdf
+    signal_level: high
+    category: disclosure_changes
+    keywords: ["disclosure", "authorization", "release of information"]
+    description: "Disclosure/authorization section changed"
+    finding_type: control
+
+  - trigger_id: health-signature-block
+    artifact_kind: pdf
+    signal_level: high
+    category: signature_changes
+    keywords: ["signature", "attestation", "signed by", "witnessed"]
+    description: "Signature/attestation block changed"
+    finding_type: control
+
+  - trigger_id: health-external-link-pdf
+    artifact_kind: pdf
+    signal_level: high
+    category: external_links
+    pattern: "https?://[^\\s]+"
+    description: "External link added/changed (esp. referencing policies)"
+    finding_type: control
+
+  - trigger_id: health-tables-forms
+    artifact_kind: pdf
+    signal_level: high
+    category: form_changes
+    keywords: ["required fields", "patient form", "intake form"]
+    description: "Tables/forms changed (fields, required disclosures)"
+    finding_type: control
+
+  - trigger_id: health-contact-notice
+    artifact_kind: pdf
+    signal_level: medium
+    category: notice_changes
+    keywords: ["contact", "support", "notice", "hotline"]
+    description: "Contact/support/notice text changed"
+    finding_type: opinionated
+
+  - trigger_id: health-scope-definitions
+    artifact_kind: pdf
+    signal_level: medium
+    category: scope_changes
+    keywords: ["covered entity", "business associate", "baa"]
+    description: "Scope definitions changed"
+    finding_type: control
+
+  # ----- XLSX TRIGGERS -----
+  - trigger_id: health-identifier-columns
+    artifact_kind: xlsx
+    signal_level: high
+    category: identifier_columns
+    keywords: ["name", "dob", "mrn", "ssn", "patient_id", "date_of_birth"]
+    description: "New columns resembling identifiers (name/DOB/MRN/SSN)"
+    finding_type: control
+
+  - trigger_id: health-macro-vba
+    artifact_kind: xlsx
+    signal_level: high
+    category: macro_changes
+    keywords: ["vba", "macro", "script"]
+    description: "Macro/VBA introduced/changed"
+    finding_type: control
+
+  - trigger_id: health-formula-quality
+    artifact_kind: xlsx
+    signal_level: high
+    category: formula_changes
+    pattern: "^=.*COUNT|SUM|AVERAGE"
+    description: "Formula changes on counts/eligibility/quality measures"
+    finding_type: control
+
+  - trigger_id: health-external-data
+    artifact_kind: xlsx
+    signal_level: high
+    category: external_connections
+    keywords: ["powerquery", "web", "odbc", "connection"]
+    description: "External data connections added (PowerQuery/web)"
+    finding_type: control
+
+  - trigger_id: health-sharing-scope
+    artifact_kind: xlsx
+    signal_level: high
+    category: sharing_changes
+    keywords: ["share", "external", "link", "public"]
+    description: "Sharing scope changed (external share/links)"
+    finding_type: control
+
+  - trigger_id: health-pivot-changes
+    artifact_kind: xlsx
+    signal_level: medium
+    category: pivot_changes
+    keywords: ["pivot", "pivottable"]
+    description: "Pivot definitions changed"
+    finding_type: opinionated
+
+# Escalation Rules
+escalation_rules:
+  - level: L0
+    score_min: 0
+    score_max: 19
+    required_approvers: []
+    conditions:
+      - "Non-PHI docs/spreadsheets formatting only"
+      - "Code comments, rename-only, no behavior change"
+    evidence_requirements: []
+
+  - level: L1
+    score_min: 20
+    score_max: 39
+    required_approvers: ["owner"]
+    conditions:
+      - "Minor wording edits not touching consent/disclosure"
+      - "Spreadsheet layout changes without formulas/macros"
+      - "Code refactors with unit tests passing and no PHI-path touch"
+    evidence_requirements:
+      - "Change summary"
+
+  - level: L2
+    score_min: 40
+    score_max: 59
+    required_approvers: ["owner", "peer_reviewer"]
+    conditions:
+      - "Any formula changes in operational/quality spreadsheets"
+      - "Policy PDF edits that touch definitions/scope (but not consent/signature)"
+      - "Code changes in PHI-adjacent modules with tests"
+    evidence_requirements:
+      - "PR diff snapshot"
+      - "Test results"
+      - "Change summary"
+
+  - level: L3
+    score_min: 60
+    score_max: 79
+    required_approvers: ["legal_privacy", "security_compliance"]
+    conditions:
+      - "PDF consent/disclosure language change"
+      - "Signature/attestation block change"
+      - "External link added to policy/consent PDF"
+      - "XLSX macros introduced/modified"
+      - "Code changes to auth, access checks, data export, encryption"
+    evidence_requirements:
+      - "PR diff snapshot"
+      - "Risk driver report"
+      - "Test results with coverage"
+      - "Data touch map"
+
+  - level: L4
+    score_min: 80
+    score_max: 100
+    required_approvers: ["privacy_officer", "security_lead"]
+    conditions:
+      - "Changes affecting patient rights/disclosures AND external distribution"
+      - "Bulk export logic changes for PHI"
+      - "Any change with external transmission + PHI detection + weak test evidence"
+    evidence_requirements:
+      - "Full evidence bundle"
+      - "Explicit rationale"
+      - "Release gate verification"
+
+# Evidence Requirements by Artifact Type
+evidence_requirements:
+  - artifact_kind: code
+    required_items:
+      - "PR diff snapshot + file list"
+      - "Risk driver report (auth/logging/export/encryption flags)"
+      - "Test results + coverage delta"
+      - "Data touch map (which endpoints/fields changed)"
+      - "Approval log + bundle hash"
+
+  - artifact_kind: pdf
+    required_items:
+      - "Deterministic page/block diff"
+      - "Diff postcard (top changes + sensitive zones)"
+      - "Link inventory diff"
+      - "Sensitive-zone hits (consent/disclosure/signature)"
+      - "Approval log + bundle hash"
+
+  - artifact_kind: xlsx
+    required_items:
+      - "Changed-cells table + formula diff"
+      - "Macro presence + macro diff (if extractable)"
+      - "External connection inventory"
+      - "Heatmap overlay (deterministic)"
+      - "Approval log + bundle hash"
+
+# Control Mappings (non-overclaim)
+control_mappings:
+  - theme: "Access Control / Authorization"
+    trigger_categories: ["auth_changes"]
+    description: "Controls related to authorization paths and role checks"
+
+  - theme: "Audit Logging / Traceability"
+    trigger_categories: ["logging_changes"]
+    description: "Controls for audit trail and logging integrity"
+
+  - theme: "Data Handling / Confidentiality"
+    trigger_categories: ["phi_handling", "external_transmission", "identifier_columns"]
+    description: "Controls for PHI handling, export, and transmission"
+
+  - theme: "Change Management"
+    trigger_categories: ["signature_changes", "consent_changes", "disclosure_changes"]
+    description: "Controls for gated approvals and evidence bundles"
+
+  - theme: "Third-Party / External Sharing"
+    trigger_categories: ["external_links", "external_connections", "sharing_changes"]
+    description: "Controls for external links, connectors, and sharing"
