@@ -22,6 +22,9 @@ from src.bundle_generator import BundleGenerator
 from src.pr_commenter import PRCommenter
 from src.sarif_exporter import SARIFExporter
 
+from code_guard.audit import Finding as AuditFinding
+from decision.engine import DecisionEngine, render_decision_card
+
 
 def get_env(name: str, default: str = "") -> str:
     """Get environment variable with default."""
@@ -69,6 +72,9 @@ def main():
     model_2 = get_env("INPUT_MODEL_2")  # Used for L2+
     model_3 = get_env("INPUT_MODEL_3")  # Used for L3+
     ai_review = parse_bool(get_env("INPUT_AI_REVIEW", "true"))
+
+    # Decision policy
+    decision_policy = get_env("INPUT_DECISION_POLICY", "standard")
 
     # Policy and rubric locations
     workspace = Path(get_env("GITHUB_WORKSPACE", ".")).resolve()
@@ -183,11 +189,24 @@ def main():
     risk_index = tier_order.index(risk_tier)
     requires_approval = risk_index >= threshold_index
 
+    # --- Decision Engine ---
+    print("::group::Running Decision Engine")
+    audit_findings = _map_findings(findings)
+    engine = DecisionEngine(decision_policy)
+    decision_packet = engine.decide(audit_findings)
+    decision_card_md = render_decision_card(decision_packet)
+    print(f"Decision: {decision_packet.decision}")
+    print(f"Hard blocks: {len(decision_packet.hard_blocks)}")
+    print(f"Conditions: {len(decision_packet.conditions)}")
+    print(f"Advisory: {len(decision_packet.advisory)}")
+    print("::endgroup::")
+
     # Set outputs
     set_output("risk_tier", risk_tier)
     set_output("risk_drivers", json.dumps(risk_drivers))
     set_output("findings_count", str(len(findings)))
     set_output("requires_approval", str(requires_approval).lower())
+    set_output("decision", decision_packet.decision)
 
     # Multi-model outputs
     models_used = analysis.get("models_used", 0)
@@ -197,18 +216,12 @@ def main():
     set_output("consensus_risk", consensus_risk)
     set_output("agreement_score", str(agreement_score))
 
-    # Post PR comment
+    # Post PR comment (Decision Card replaces old Diff Postcard)
     if post_comment:
         print("::group::Posting PR comment")
         commenter = PRCommenter(gh, repo, pr)
-        commenter.post_summary(
-            risk_tier=risk_tier,
-            risk_drivers=risk_drivers,
-            findings=findings,
-            requires_approval=requires_approval,
-            threshold=risk_threshold
-        )
-        print("Comment posted")
+        commenter.post_decision_card(decision_card_md)
+        print("Decision Card posted")
         print("::endgroup::")
 
     # Generate evidence bundle
@@ -261,20 +274,41 @@ def main():
         print(f"SARIF saved: {sarif_path}")
         print("::endgroup::")
 
-    # Determine exit status
-    if requires_approval:
-        print(f"::warning::Risk tier {risk_tier} exceeds threshold {risk_threshold}")
-        print("::warning::Human approval required before merge")
-
-        # Create check annotation
-        print(f"::warning file=GUARDSPINE::Risk tier {risk_tier} requires human approval. "
-              f"Review the Diff Postcard and approve in GuardSpine.")
-
+    # Determine exit status (decision engine is authoritative)
+    if decision_packet.decision == "block":
+        print(f"::error::Decision Engine: BLOCKED ({len(decision_packet.hard_blocks)} provable failures)")
+        print(f"::error file=GUARDSPINE::Merge blocked by {len(decision_packet.hard_blocks)} provable finding(s).")
+        sys.exit(1)
+    elif decision_packet.decision == "merge-with-conditions":
+        print(f"::warning::Decision Engine: CONDITIONAL ({len(decision_packet.conditions)} reviewer action(s) required)")
         if fail_on_high_risk:
             sys.exit(1)
+    else:
+        print(f"::notice::Decision Engine: MERGE - clean to merge (risk tier {risk_tier})")
 
-    print(f"::notice::Risk tier {risk_tier} - workflow completed")
     sys.exit(0)
+
+
+def _map_findings(finding_dicts: list[dict]) -> list[AuditFinding]:
+    """Map codeguard-action finding dicts to decision engine Finding objects."""
+    mapped = []
+    for fd in finding_dicts:
+        location = None
+        if fd.get("file"):
+            location = fd["file"]
+            if fd.get("line"):
+                location += f":{fd['line']}"
+        # Zone findings and rubric findings with rule_id are pattern-matched = provable
+        provable = bool(fd.get("rule_id"))
+        mapped.append(AuditFinding(
+            severity=fd.get("severity", "medium"),
+            category=fd.get("zone", "general"),
+            location=location,
+            description=fd.get("message", ""),
+            recommendation=f"Review {fd.get('rule_id', 'finding')}",
+            provable=provable,
+        ))
+    return mapped
 
 
 def fetch_pr_diff(pr: PullRequest) -> str:

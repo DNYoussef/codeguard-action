@@ -214,6 +214,21 @@ class PRCommenter:
             "info": ":white_circle:",
         }.get(severity, ":white_circle:")
 
+    def post_decision_card(self, decision_card_md: str) -> None:
+        """
+        Post or update the Decision Card comment.
+
+        Args:
+            decision_card_md: Pre-rendered markdown from render_decision_card()
+        """
+        body = f"{self.COMMENT_MARKER}\n\n{decision_card_md}"
+
+        existing = self._find_existing_comment()
+        if existing:
+            existing.edit(body)
+        else:
+            self.pr.create_issue_comment(body)
+
     def post_approval_request(
         self,
         risk_tier: str,

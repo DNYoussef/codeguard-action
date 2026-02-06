@@ -79,6 +79,10 @@ inputs:
     description: 'Directory to write evidence bundles (relative to workspace)'
     required: false
     default: '.guardspine/bundles'
+  decision_policy:
+    description: 'Decision engine policy (standard, strict, advisory, or path to custom YAML)'
+    required: false
+    default: 'standard'
 
 outputs:
   risk_tier:
@@ -97,6 +101,8 @@ outputs:
     description: 'Multi-model consensus: approve, request_changes, or comment'
   agreement_score:
     description: 'How much models agreed (0.0-1.0)'
+  decision:
+    description: 'Decision engine verdict: merge, merge-with-conditions, or block'
 
 runs:
   using: 'docker'
