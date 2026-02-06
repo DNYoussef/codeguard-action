@@ -8,6 +8,7 @@ retained for backward compatibility with existing consumers/tests.
 import hashlib
 import json
 import uuid
+from base64 import b64encode
 from datetime import datetime, timezone
 from typing import Any, Optional
 from dataclasses import dataclass, field
@@ -199,10 +200,9 @@ class BundleGenerator:
         return bundle
 
     def _generate_bundle_id(self, repository: str, pr_number: int, commit_sha: str) -> str:
-        """Generate a unique bundle ID."""
-        content = f"{repository}:{pr_number}:{commit_sha}:{datetime.now(timezone.utc).isoformat()}"
-        short_hash = hashlib.sha256(content.encode()).hexdigest()[:12]
-        return f"gsb_{short_hash}"
+        """Generate a spec-compliant UUID v4 bundle ID."""
+        _ = (repository, pr_number, commit_sha)
+        return str(uuid.uuid4())
 
     def _event_to_dict(self, event: BundleEvent) -> dict:
         """Convert BundleEvent to dict."""
@@ -286,16 +286,16 @@ class BundleGenerator:
         Supports PEM-encoded Ed25519, RSA, or EC keys when cryptography is
         available. Falls back to HMAC-SHA256 if cryptography is unavailable.
         """
-        # Create canonical JSON for signing
-        canonical = json.dumps({
-            "bundle_id": bundle["bundle_id"],
-            "hash_chain": bundle["hash_chain"],
-            "summary": bundle["summary"],
-        }, sort_keys=True, separators=(',', ':'))
+        signed_at = datetime.now(timezone.utc).isoformat()
+        signature_id = str(uuid.uuid4())
+        signer_id = "guardspine-codeguard"
+
+        # Sign the full bundle payload excluding signatures.
+        signing_payload = {k: v for k, v in bundle.items() if k != "signatures"}
+        canonical = json.dumps(signing_payload, sort_keys=True, separators=(",", ":"))
         canonical_bytes = canonical.encode()
 
         try:
-            from base64 import b64encode
             from cryptography.hazmat.primitives import hashes, serialization
             from cryptography.hazmat.primitives.asymmetric import ed25519, padding, rsa, ec
             from cryptography.hazmat.primitives.serialization import load_pem_private_key
@@ -313,11 +313,13 @@ class BundleGenerator:
                 )
                 algo = "rsa-sha256"
             elif isinstance(key, ec.EllipticCurvePrivateKey):
+                if key.curve.name.lower() != "secp256r1":
+                    raise ValueError("Unsupported ECDSA curve; required: secp256r1 (P-256)")
                 signature = key.sign(
                     canonical_bytes,
                     ec.ECDSA(hashes.SHA256())
                 )
-                algo = "ecdsa-sha256"
+                algo = "ecdsa-p256"
             else:
                 raise ValueError("Unsupported key type for signing")
 
@@ -326,32 +328,36 @@ class BundleGenerator:
                 format=serialization.PublicFormat.SubjectPublicKeyInfo
             )
             public_fingerprint = hashlib.sha256(public_key_bytes).hexdigest()
+            signature_value = b64encode(signature).decode()
 
             return {
-                "type": algo,
-                "signer": "guardspine-codeguard",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "signature": b64encode(signature).decode(),
-                "public_key_fingerprint": public_fingerprint,
+                "signature_id": signature_id,
+                "algorithm": algo,
+                "signer_id": signer_id,
+                "signature_value": signature_value,
+                "signed_at": signed_at,
+                "public_key_id": f"sha256:{public_fingerprint}",
             }
         except ImportError:
             import hmac
-            signature = hmac.new(private_key.encode(), canonical_bytes, hashlib.sha256).hexdigest()
+            signature = hmac.new(private_key.encode(), canonical_bytes, hashlib.sha256).digest()
             return {
-                "type": "hmac-sha256",
-                "signer": "guardspine-codeguard",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "signature": signature,
+                "signature_id": signature_id,
+                "algorithm": "hmac-sha256",
+                "signer_id": signer_id,
+                "signature_value": b64encode(signature).decode(),
+                "signed_at": signed_at,
                 "note": "cryptography library not available; used HMAC-SHA256",
             }
         except Exception as exc:
             import hmac
-            signature = hmac.new(private_key.encode(), canonical_bytes, hashlib.sha256).hexdigest()
+            signature = hmac.new(private_key.encode(), canonical_bytes, hashlib.sha256).digest()
             return {
-                "type": "hmac-sha256",
-                "signer": "guardspine-codeguard",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "signature": signature,
+                "signature_id": signature_id,
+                "algorithm": "hmac-sha256",
+                "signer_id": signer_id,
+                "signature_value": b64encode(signature).decode(),
+                "signed_at": signed_at,
                 "note": f"key parsing failed; used HMAC-SHA256 instead: {exc}",
             }
 

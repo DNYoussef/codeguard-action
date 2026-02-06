@@ -16,6 +16,9 @@ import os
 import sys
 import tempfile
 import unittest
+import uuid
+import base64
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 import yaml
@@ -346,7 +349,7 @@ class TestPRCommentRendering(unittest.TestCase):
 class TestBundleIntegrity(unittest.TestCase):
     """Fix #4: bundles must remain valid after code changes."""
 
-    def _make_bundle(self):
+    def _make_bundle(self, attestation_key=None):
         gh = Github("fake-token")
         repo = gh.get_repo("test/repo")
         pr = repo.get_pull(42)
@@ -363,7 +366,8 @@ class TestBundleIntegrity(unittest.TestCase):
         }
         bundle = generator.create_bundle(
             pr=pr, diff_content=SAMPLE_DIFF, analysis=analysis,
-            risk_result=risk_result, repository="test/repo", commit_sha="abc1234567890"
+            risk_result=risk_result, repository="test/repo", commit_sha="abc1234567890",
+            attestation_key=attestation_key,
         )
         return bundle
 
@@ -410,6 +414,37 @@ class TestBundleIntegrity(unittest.TestCase):
         self.assertIsInstance(serialized, str)
         reparsed = json.loads(serialized)
         self.assertEqual(reparsed["bundle_id"], bundle["bundle_id"])
+
+    def test_bundle_id_is_uuid_v4(self):
+        bundle = self._make_bundle()
+        parsed = uuid.UUID(bundle["bundle_id"])
+        self.assertEqual(parsed.version, 4)
+
+    def test_signature_shape_matches_v020_spec(self):
+        bundle = self._make_bundle(attestation_key="unit-test-secret")
+        signatures = bundle.get("signatures", [])
+        self.assertEqual(len(signatures), 1)
+        sig = signatures[0]
+
+        required = ["signature_id", "algorithm", "signer_id", "signature_value", "signed_at"]
+        for field in required:
+            self.assertIn(field, sig, f"Missing signature field: {field}")
+
+        self.assertIn(sig["algorithm"], ("ed25519", "rsa-sha256", "ecdsa-p256", "hmac-sha256"))
+        self.assertEqual(sig["signer_id"], "guardspine-codeguard")
+
+        # Ensure signature bytes are schema-compatible base64.
+        decoded = base64.b64decode(sig["signature_value"], validate=True)
+        self.assertTrue(len(decoded) > 0, "Decoded signature bytes should not be empty")
+
+        # Ensure timestamp is ISO 8601 parseable.
+        datetime.fromisoformat(sig["signed_at"].replace("Z", "+00:00"))
+
+        # Legacy keys should no longer be emitted.
+        self.assertNotIn("type", sig)
+        self.assertNotIn("signer", sig)
+        self.assertNotIn("timestamp", sig)
+        self.assertNotIn("signature", sig)
 
 
 # ===========================================================================
