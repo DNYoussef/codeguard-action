@@ -4,6 +4,9 @@ requests>=2.31.0
 pyyaml>=6.0
 jsonschema>=4.0
 
+# GuardSpine product (Decision Engine + Finding model)
+guardspine-product @ git+https://github.com/DNYoussef/guardspine-product.git@main
+
 # Diff and analysis
 unidiff>=0.7.5
 
