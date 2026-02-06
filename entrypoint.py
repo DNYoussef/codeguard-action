@@ -232,13 +232,21 @@ def main():
         with open(bundle_path, "w") as f:
             json.dump(bundle, f, indent=2, default=str)
 
-        set_output("bundle_path", str(bundle_path))
-        print(f"Bundle saved: {bundle_path}")
+        # Output path relative to workspace so upload-artifact (which runs
+        # outside the Docker container) can resolve it against the host
+        # workspace directory.  Absolute container paths like
+        # /github/workspace/... don't exist on the host.
+        try:
+            relative_bundle = bundle_path.relative_to(workspace)
+        except ValueError:
+            relative_bundle = bundle_path
+        set_output("bundle_path", str(relative_bundle))
+        print(f"Bundle saved: {relative_bundle}")
         print(f"Bundle ID: {bundle['bundle_id']}")
         print("::endgroup::")
 
         # Upload as artifact
-        print(f"::notice::Evidence bundle generated: {bundle_path}")
+        print(f"::notice::Evidence bundle generated: {relative_bundle}")
 
     # Upload SARIF if requested
     if upload_sarif and findings:

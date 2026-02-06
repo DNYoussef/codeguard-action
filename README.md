@@ -18,6 +18,55 @@ When an auditor asks "How did this payment logic change get approved?", GitHub g
 - Cryptographic proof nothing changed after review
 - A hash-chained evidence bundle you can verify independently
 
+## Install (1 minute)
+
+**1. Add one secret** (pick any AI provider, or skip for rules-only mode):
+
+| Provider | Secret name | Notes |
+|----------|-------------|-------|
+| OpenRouter | `OPENROUTER_API_KEY` | Recommended - single key, 100+ models |
+| Anthropic | `ANTHROPIC_API_KEY` | Direct Claude access |
+| OpenAI | `OPENAI_API_KEY` | Direct GPT access |
+| Ollama | *(none needed)* | Self-hosted, air-gapped |
+
+`GITHUB_TOKEN` is provided automatically by GitHub.
+
+**2. Create `.github/workflows/codeguard.yml`:**
+
+```yaml
+name: CodeGuard
+on: [pull_request]
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DNYoussef/codeguard-action@v1
+        id: guard
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}  # optional
+          risk_threshold: L3          # L0-L4, default L3
+          # rubric: soc2              # or: hipaa, pci-dss, default
+          # fail_on_high_risk: false  # true = exit 1 on L3+, false = warn only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-bundle
+          path: ${{ steps.guard.outputs.bundle_path }}
+```
+
+**3. Open a PR.** You'll see a Diff Postcard comment with risk tier + findings, and the evidence bundle in workflow artifacts.
+
+**Verify a bundle locally** (optional):
+```bash
+pip install guardspine-verify && guardspine-verify .guardspine/bundles/*.json
+```
+
+> **Troubleshooting**: Missing artifact? Ensure `bundle_dir` matches upload path. Hard fail on L4? Set `fail_on_high_risk: false` (default). No AI review? Provide at least one API key and set `ai_review: true` (default).
+
+---
+
 ## How It Works
 
 ```
@@ -210,39 +259,6 @@ Configure **any combination** of models - same provider or mixed:
 
 ---
 
-## Try in 60 Seconds
-
-1. **Add the workflow** to any repo:
-
-```yaml
-# .github/workflows/codeguard.yml
-name: CodeGuard
-on: [pull_request]
-jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DNYoussef/codeguard-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-2. **Open a PR** - you'll see:
-   - **PR Comment**: Diff Postcard with risk tier and drivers
-   - **Check Status**: Pass/fail based on risk threshold
-   - **Artifact**: `evidence-bundle-prN-abc1234.json` in workflow artifacts
-
-3. **Verify the bundle** (optional):
-```bash
-# Install verifier
-pip install git+https://github.com/DNYoussef/guardspine-verify
-
-# Verify integrity
-guardspine-verify .guardspine/bundle-pr*.json
-# Output: [OK] Hash chain verified
-```
-
 ### Diff Analysis Output
 
 ![CodeGuard Diff Analysis](docs/diff-analysis-demo.png)
@@ -250,62 +266,6 @@ guardspine-verify .guardspine/bundle-pr*.json
 *Sensitive zones automatically detected in auth and payment code with risk tier assignment*
 
 ---
-
-## Quick Start
-
-Add to your workflow (`.github/workflows/codeguard.yml`):
-
-```yaml
-name: CodeGuard
-
-on:
-  pull_request:
-    types: [opened, synchronize]
-
-jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: GuardSpine CodeGuard
-        uses: DNYoussef/codeguard-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          risk_threshold: L3
-          rubric: soc2
-```
-
-## One-Page Install (TL;DR)
-
-1. **Secrets:** `GITHUB_TOKEN` (provided by GitHub) plus one AI provider if you want model review (`OPENROUTER_API_KEY` recommended; or `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `OLLAMA_HOST`).
-2. **Workflow (minimal):**
-```yaml
-name: CodeGuard
-on: [pull_request]
-jobs:
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: DNYoussef/codeguard-action@v1
-        id: guard
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          risk_threshold: L3
-          bundle_dir: .guardspine/bundles
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: evidence-bundle
-          path: ${{ steps.guard.outputs.bundle_path }}
-```
-3. **Verify bundle locally:** `pip install guardspine-verify` then `guardspine-verify .guardspine/bundles/*.json`.
-4. **Troubleshooting**
-- Missing artifact: ensure `bundle_dir` matches the upload path and `generate_bundle` is true.
-- Hard fail on L4: set `fail_on_high_risk: false` (default) to emit warnings instead of failing the job.
-- Rubric regex crash: bad patterns are skipped with warnings; fix or remove the offending rule.
-- No AI review: set `ai_review: true` (default) and provide at least one model key/host.
 
 ## Features
 

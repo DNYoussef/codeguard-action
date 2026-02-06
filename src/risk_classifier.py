@@ -405,26 +405,50 @@ class RiskClassifier:
         """Calculate top risk drivers."""
         drivers = []
 
-        # Zone-based drivers
-        zone_counts = {}
+        # Zone-based drivers - include affected files so reviewers know WHERE
+        zone_info: dict[str, dict] = {}
         for z in zones:
-            zone_counts[z["zone"]] = zone_counts.get(z["zone"], 0) + 1
+            zn = z["zone"]
+            if zn not in zone_info:
+                zone_info[zn] = {"count": 0, "locations": []}
+            zone_info[zn]["count"] += 1
+            loc = z.get("file", "")
+            line = z.get("line")
+            ref = f"{loc}:{line}" if loc and line else loc
+            if ref and ref not in zone_info[zn]["locations"]:
+                zone_info[zn]["locations"].append(ref)
 
-        for zone, count in sorted(zone_counts.items(), key=lambda x: -x[1])[:3]:
+        for zone, info in sorted(zone_info.items(), key=lambda x: -x[1]["count"])[:3]:
+            locs = info["locations"][:3]  # top 3 locations
+            loc_str = ", ".join(f"`{l}`" for l in locs)
+            if len(info["locations"]) > 3:
+                loc_str += f" +{len(info['locations']) - 3} more"
+            desc = f"{info['count']} changes in {zone} code"
+            if loc_str:
+                desc += f" ({loc_str})"
             drivers.append({
                 "type": "sensitive_zone",
                 "zone": zone,
-                "count": count,
-                "description": f"{count} changes in {zone} code"
+                "count": info["count"],
+                "locations": info["locations"],
+                "description": desc,
             })
 
-        # Finding-based drivers
+        # Finding-based drivers - include file/line
         for finding in sorted(findings, key=lambda f: {"critical": 0, "high": 1, "medium": 2}.get(f.severity, 3))[:3]:
+            desc = finding.message
+            if finding.file:
+                loc = finding.file
+                if finding.line:
+                    loc += f":{finding.line}"
+                desc += f" (`{loc}`)"
             drivers.append({
                 "type": "policy_finding",
                 "rule": finding.rule_id,
                 "severity": finding.severity,
-                "description": finding.message
+                "file": finding.file,
+                "line": finding.line,
+                "description": desc,
             })
 
         # AI-based drivers

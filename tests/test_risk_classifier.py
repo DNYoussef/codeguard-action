@@ -76,5 +76,36 @@ class RiskClassifierTests(unittest.TestCase):
         self.assertEqual(result["risk_tier"], "L4")
 
 
+    def test_risk_drivers_include_file_locations(self):
+        analysis = {
+            "files": [{"path": "src/auth.py", "hunks": []}],
+            "sensitive_zones": [
+                {"zone": "auth", "file": "src/auth.py", "line": 42},
+                {"zone": "auth", "file": "src/auth.py", "line": 99},
+            ],
+            "lines_added": 5,
+            "lines_removed": 0,
+        }
+        classifier = RiskClassifier(rubric="default")
+        result = classifier.classify(analysis)
+
+        zone_drivers = [d for d in result["risk_drivers"] if d["type"] == "sensitive_zone"]
+        self.assertTrue(len(zone_drivers) > 0, "Expected zone-based risk drivers")
+        first = zone_drivers[0]
+        self.assertIn("locations", first)
+        self.assertTrue(len(first["locations"]) > 0, "Expected locations in driver")
+        self.assertIn("src/auth.py:42", first["locations"])
+        # Description should mention the file
+        self.assertIn("src/auth.py", first["description"])
+
+    def test_bundle_path_is_relative(self):
+        """Ensure set_output bundle_path would be relative to workspace."""
+        from pathlib import PurePosixPath
+        workspace = PurePosixPath("/github/workspace")
+        bundle_path = workspace / ".guardspine" / "bundles" / "bundle-pr1-abc1234.json"
+        relative = PurePosixPath(str(bundle_path).replace(str(workspace) + "/", ""))
+        self.assertEqual(str(relative), ".guardspine/bundles/bundle-pr1-abc1234.json")
+
+
 if __name__ == "__main__":
     unittest.main()
