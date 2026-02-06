@@ -518,11 +518,13 @@ steps:
 
 ## Evidence Bundle Format
 
-Bundles follow the [guardspine-spec](https://github.com/DNYoussef/guardspine-spec) v1.0:
+Bundles follow the [guardspine-spec](https://github.com/DNYoussef/guardspine-spec) v0.2.0.
+For backward compatibility, legacy `events` + `hash_chain` fields are still emitted:
 
 ```json
 {
-  "guardspine_spec_version": "1.0.0",
+  "version": "0.2.0",
+  "guardspine_spec_version": "0.2.0",
   "bundle_id": "gsb_abc123def456",
   "created_at": "2024-01-15T10:30:00Z",
   "context": {

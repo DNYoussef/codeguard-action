@@ -1,7 +1,8 @@
 """
 Bundle Generator - Creates cryptographically verifiable evidence bundles.
 
-Follows guardspine-spec v1.0 format.
+Primary output follows guardspine-spec v0.2.0. Legacy v1-style fields are
+retained for backward compatibility with existing consumers/tests.
 """
 
 import hashlib
@@ -38,7 +39,8 @@ class BundleEvent:
 
 class BundleGenerator:
     """
-    Generates evidence bundles following guardspine-spec v1.0.
+    Generates evidence bundles with a v0.2.0 canonical immutability proof.
+    Legacy event/hash_chain fields are also emitted for compatibility.
 
     Bundle structure:
     - Header: version, bundle_id, timestamps, context
@@ -47,7 +49,7 @@ class BundleGenerator:
     - Signatures: Cryptographic attestations (optional)
     """
 
-    SPEC_VERSION = "1.0.0"
+    SPEC_VERSION = "0.2.0"
 
     def __init__(self):
         """Initialize bundle generator."""
@@ -149,7 +151,11 @@ class BundleGenerator:
                 self.events.append(approval_event)
 
         # Build complete bundle
+        v020_items = self._build_v020_items()
+        v020_proof = self._build_v020_proof(v020_items)
+
         bundle = {
+            "version": self.SPEC_VERSION,
             "guardspine_spec_version": self.SPEC_VERSION,
             "bundle_id": bundle_id,
             "created_at": created_at,
@@ -166,6 +172,8 @@ class BundleGenerator:
                 "final_hash": previous_hash,
                 "event_count": len(self.events),
             },
+            "items": v020_items,
+            "immutability_proof": v020_proof,
             "summary": {
                 "risk_tier": risk_result.get("risk_tier", "L2"),
                 "risk_drivers": risk_result.get("risk_drivers", []),
@@ -221,6 +229,55 @@ class BundleGenerator:
             summary[zone_type]["files"] = list(summary[zone_type]["files"])
 
         return summary
+
+    def _build_v020_items(self) -> list[dict[str, Any]]:
+        """Map legacy events into v0.2.0 bundle item records."""
+        items: list[dict[str, Any]] = []
+        for idx, event in enumerate(self.events):
+            content = {
+                "event_type": event.event_type,
+                "timestamp": event.timestamp,
+                "actor": event.actor,
+                "data": event.data,
+            }
+            serialized = json.dumps(content, sort_keys=True, separators=(",", ":"))
+            content_hash = "sha256:" + hashlib.sha256(serialized.encode()).hexdigest()
+            items.append({
+                "item_id": f"event-{idx:04d}",
+                "sequence": idx,
+                "content_type": f"guardspine/codeguard/{event.event_type}",
+                "content": content,
+                "content_hash": content_hash,
+            })
+        return items
+
+    def _build_v020_proof(self, items: list[dict[str, Any]]) -> dict[str, Any]:
+        """Build a v0.2.0 immutability proof from item records."""
+        hash_chain: list[dict[str, Any]] = []
+        previous_hash = "genesis"
+        for item in items:
+            sequence = item["sequence"]
+            chain_input = (
+                f"{sequence}|{item['item_id']}|{item['content_type']}|"
+                f"{item['content_hash']}|{previous_hash}"
+            )
+            chain_hash = "sha256:" + hashlib.sha256(chain_input.encode()).hexdigest()
+            hash_chain.append({
+                "sequence": sequence,
+                "item_id": item["item_id"],
+                "content_type": item["content_type"],
+                "content_hash": item["content_hash"],
+                "previous_hash": previous_hash,
+                "chain_hash": chain_hash,
+            })
+            previous_hash = chain_hash
+
+        concatenated = "".join(link["chain_hash"] for link in hash_chain)
+        root_hash = "sha256:" + hashlib.sha256(concatenated.encode()).hexdigest()
+        return {
+            "hash_chain": hash_chain,
+            "root_hash": root_hash,
+        }
 
     def _sign_bundle(self, bundle: dict, private_key: str) -> dict:
         """

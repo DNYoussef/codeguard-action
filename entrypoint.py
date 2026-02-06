@@ -293,7 +293,7 @@ def fetch_pr_diff(pr: PullRequest) -> str:
     import requests
 
     diff_url = pr.diff_url
-    response = requests.get(diff_url)
+    response = requests.get(diff_url, timeout=30)
     response.raise_for_status()
     return response.text
 
