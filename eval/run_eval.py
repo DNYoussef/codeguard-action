@@ -118,9 +118,9 @@ def run_sample(
     category = sample_path.parent.name
     expected_flag = category == "vulnerable"
 
-    # 1. Analyze
+    # 1. Analyze (pass forced_tier so analyzer uses correct model count)
     try:
-        analysis = analyzer.analyze(diff_content, rubric="default")
+        analysis = analyzer.analyze(diff_content, rubric="default", tier_override=forced_tier)
     except Exception as e:
         errors.append(f"Analyzer: {e}")
         analysis = {
@@ -129,8 +129,6 @@ def run_sample(
         }
 
     tier_preliminary = analysis.get("preliminary_tier", "L0")
-    if forced_tier:
-        analysis["preliminary_tier"] = forced_tier
 
     # 2. Classify
     try:
@@ -143,7 +141,11 @@ def run_sample(
     findings = risk.get("findings", [])
 
     # 3. Decide
-    audit_findings = _map_findings(findings)
+    try:
+        audit_findings = _map_findings(findings)
+    except Exception as e:
+        errors.append(f"MapFindings: {e}")
+        audit_findings = []
     try:
         packet = engine.decide(audit_findings)
     except Exception as e:
@@ -185,11 +187,11 @@ def _map_findings(finding_dicts: list) -> list[AuditFinding]:
         if fd.get("line"):
             loc += f":{fd['line']}"
         mapped.append(AuditFinding(
-            severity=fd.get("severity", "medium"),
-            category=fd.get("zone", "general"),
+            severity=fd.get("severity") or "medium",
+            category=fd.get("zone") or "general",
             location=loc or None,
-            description=fd.get("message", ""),
-            recommendation=f"Review {fd.get('rule_id', 'finding')}",
+            description=fd.get("message") or "",
+            recommendation=f"Review {fd.get('rule_id') or 'finding'}",
             provable=bool(fd.get("rule_id")),
         ))
     return mapped

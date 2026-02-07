@@ -114,16 +114,40 @@ L0 (rules): 98.1% detection, 63.6% FP  <- current benchmark
 L1+ (AI):   98%+ detection, <5% FP     <- expected after AI wiring activates
 ```
 
+## Post-Fix Bug Fixes (2026-02-07)
+
+### P2: Three bugs fixed in consensus pipeline
+
+| Bug | File | Root Cause | Fix |
+|-----|------|-----------|-----|
+| consensus_risk=None | analyzer.py | `dict.get("key", default)` returns None when key exists with None value | Changed to `or` pattern throughout |
+| _map_findings crash | run_eval.py | Same dict.get() gotcha on zone=None for AI-CONCERN findings | `fd.get("zone") or "general"` |
+| tier_override missing | analyzer.py | Harness forced_tier didn't control model count | Added `tier_override` param to `analyze()` |
+
+Additional cleanup:
+- Removed debug prints from analyzer.py
+- Wrapped `_map_findings` in try/except in run_eval.py
+- Consensus extraction uses `or ""` pattern for None-safety
+
+### L1/L2 Benchmark Status
+
+**BLOCKED**: OpenRouter API key hit spending limit (403). Need to add credits
+at https://openrouter.ai/settings/keys before L1/L2 benchmarks can run.
+
+L0 benchmark confirmed identical results after all fixes (74.1% accuracy,
+98.1% detection, 1.9% FN).
+
 ## Phase 1 Targets
 
-With P1+P0 fixes in place, the next benchmark should run at L1/L2 to measure
+With P2 bug fixes in place, the next benchmark should run at L1/L2 to measure
 AI FP suppression. Remaining work:
 
-1. Run L1 benchmark (costs ~$0.50 in API calls for 85 samples)
-2. Run L2 benchmark with rubric (costs ~$1.00)
-3. Measure FP suppression from AI consensus downgrade
-4. CVEFixes dataset (needs 391MB Kaggle CSV download)
-5. If FP still high at L2, consider pattern allowlists (e.g., bcrypt/argon2 exempt from crypto zone)
+1. **Add OpenRouter credits** (key exceeded total limit)
+2. Run L1 benchmark (costs ~$0.50 in API calls for 85 samples)
+3. Run L2 benchmark with rubric (costs ~$1.00)
+4. Measure FP suppression from AI consensus downgrade
+5. CVEFixes dataset (needs 391MB Kaggle CSV download)
+6. If FP still high at L2, consider pattern allowlists (e.g., bcrypt/argon2 exempt from crypto zone)
 
 ## Test Coverage
 

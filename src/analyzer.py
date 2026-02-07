@@ -251,7 +251,7 @@ class DiffAnalyzer:
             return bool(self.openai_key)
         return False
 
-    def analyze(self, diff_content: str, rubric: str = "default") -> dict[str, Any]:
+    def analyze(self, diff_content: str, rubric: str = "default", tier_override: str = None) -> dict[str, Any]:
         """
         Analyze a diff with tier-based multi-model review.
 
@@ -340,9 +340,10 @@ class DiffAnalyzer:
             "preliminary_tier": preliminary_tier,
         }
 
-        # Run tier-based multi-model review
-        models_needed = self.TIER_MODEL_COUNT.get(preliminary_tier, 1)
-        use_rubric = preliminary_tier in ("L2", "L3", "L4")
+        # Apply tier override if provided (e.g., from eval harness)
+        effective_tier = tier_override or preliminary_tier
+        models_needed = self.TIER_MODEL_COUNT.get(effective_tier, 1)
+        use_rubric = effective_tier in ("L2", "L3", "L4")
 
         if models_needed > 0 and self.ai_enabled:
             multi_review = self._run_multi_model_review(
@@ -352,12 +353,9 @@ class DiffAnalyzer:
 
             # Extract top-level outputs for entrypoint.py
             result["models_used"] = multi_review.get("models_used", 0)
-            if multi_review.get("consensus"):
-                result["consensus_risk"] = multi_review["consensus"].get("consensus_risk", "")
-                result["agreement_score"] = multi_review["consensus"].get("agreement_score", 0.0)
-            else:
-                result["consensus_risk"] = ""
-                result["agreement_score"] = 0.0
+            consensus = multi_review.get("consensus") or {}
+            result["consensus_risk"] = consensus.get("consensus_risk") or ""
+            result["agreement_score"] = consensus.get("agreement_score") or 0.0
 
             # Legacy compatibility: also include ai_summary from first model
             if multi_review.get("reviews"):
@@ -631,8 +629,8 @@ Be specific about concerns. If no concerns, use empty array."""
         if not valid_reviews:
             return {"error": "All model reviews failed"}
 
-        # Count risk assessments
-        assessments = [r.get("risk_assessment", "comment") for r in valid_reviews]
+        # Count risk assessments (use `or` to handle None values)
+        assessments = [r.get("risk_assessment") or "comment" for r in valid_reviews]
         assessment_counts = {}
         for a in assessments:
             assessment_counts[a] = assessment_counts.get(a, 0) + 1
