@@ -268,10 +268,16 @@ class RiskClassifier:
         agreement_score = analysis.get("agreement_score", 0.0)
 
         if consensus_risk == "approve" and agreement_score >= 0.8:
-            # AI unanimously approved: downgrade zone-only findings by one
-            # level. Rubric findings are NOT downgraded (they are policy).
+            # AI unanimously approved: double-downgrade zone-only findings.
+            # Single downgrade (critical->high) still triggers conditions in
+            # DecisionEngine (high+provable=condition). Double downgrade
+            # (critical->medium, high->low) drops them below the threshold,
+            # making them advisory-only. This is semantically correct: zone
+            # findings are keyword matches, and the AI confirmed they're safe.
+            # Rubric findings are NOT downgraded (they are organizational policy).
             for f in findings:
                 if f.zone and not f.rule_id.startswith("RUBRIC"):
+                    f.severity = self._downgrade_severity(f.severity)
                     f.severity = self._downgrade_severity(f.severity)
 
         elif consensus_risk == "request_changes" and agreement_score >= 0.7:

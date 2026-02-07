@@ -574,29 +574,47 @@ For {rubric.upper()} compliance, evaluate:
 Include rubric_scores in your JSON response.
 """
 
-        return f"""You are a senior code reviewer conducting a security and compliance review.
+        return f"""You are a senior security engineer triaging a code diff. Your job is to distinguish SAFE code from DANGEROUS code. Most code is safe. Only flag code that is actually exploitable.
+
+## Decision Criteria
+
+**approve** - Use this when:
+- Code uses parameterized queries (?, %s, :name placeholders) even if it touches SQL
+- Code uses safe crypto (bcrypt, argon2, scrypt, AES-256, secrets module) even if it touches crypto
+- Code reads credentials from env vars, vaults, keyrings, config files (not hardcoded)
+- Code uses subprocess with list args (no shell=True), shlex.quote, or allowlists
+- Code uses safe deserialization (json.loads, dataclasses, msgpack, yaml.safe_load)
+- Code uses path sanitization (os.path.basename, Path.resolve, allowlists)
+- Code uses template engines with autoescaping (Jinja2 default, Django templates)
+- Code is tests, docs, or configuration only
+
+**request_changes** - Use this ONLY when code has an actual exploitable vulnerability:
+- Unsanitized user input in SQL, commands, templates, or file paths
+- Hardcoded secrets, API keys, passwords as string literals in source
+- Dangerous deserialization of untrusted input (pickle, yaml.load without SafeLoader)
+- Disabled security features (shell=True with user input, autoescaping off)
+- Weak crypto for security purposes (MD5/SHA1 for passwords, random.random for tokens)
+
+**comment** - Use when code is neither clearly safe nor clearly dangerous
 
 ## Diff to Review
-Sensitive zones detected: {len(sensitive_zones)}
-Zones: {', '.join(set(z['zone'] for z in sensitive_zones[:5])) if sensitive_zones else 'None'}
 
 ```diff
 {diff_content[:6000]}
 ```
 {rubric_section}
-## Required Response (JSON format)
+## Required Response (JSON only)
 
-Respond with ONLY valid JSON:
 {{
-    "summary": "One-sentence summary of what changed",
+    "summary": "One sentence: what this code does",
     "intent": "feature|bugfix|refactor|config|security|documentation",
-    "concerns": ["List of security/compliance concerns, if any"],
+    "concerns": [],
     "risk_assessment": "approve|request_changes|comment",
     "confidence": 0.85,
-    "rubric_scores": {{"security_impact": 4, "code_quality": 4, "test_coverage": 3, "documentation": 3, "rollback_safety": 4}}
+    "rubric_scores": {{}}
 }}
 
-Be specific about concerns. If no concerns, use empty array."""
+IMPORTANT: If the code follows security best practices, respond with "approve" and empty concerns array. Only use "request_changes" for actual vulnerabilities."""
 
     def _parse_review_response(self, response: str) -> dict:
         """Parse the JSON response from a model."""

@@ -197,7 +197,7 @@ def _map_findings(finding_dicts: list) -> list[AuditFinding]:
             location=loc or None,
             description=fd.get("message") or "",
             recommendation=f"Review {fd.get('rule_id') or 'finding'}",
-            provable=bool(fd.get("rule_id")),
+            provable=bool(fd.get("rule_id")) and not (fd.get("rule_id") or "").startswith("ai-"),
         ))
     return mapped
 

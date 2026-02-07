@@ -197,11 +197,12 @@ class RiskClassifierTests(unittest.TestCase):
         classifier = RiskClassifier(rubric="default")
         result = classifier.classify(analysis)
 
-        # auth zone is normally "high" -> should be downgraded to "medium"
+        # auth zone is normally "high" -> double downgrade to "low" when AI approves
+        # (single downgrade left high->medium which still triggered conditions)
         auth_findings = [f for f in result["findings"] if f.get("zone") == "auth"]
         self.assertTrue(len(auth_findings) > 0)
-        self.assertEqual(auth_findings[0]["severity"], "medium",
-                         "AI approve should downgrade auth finding from high to medium")
+        self.assertEqual(auth_findings[0]["severity"], "low",
+                         "AI approve should double-downgrade auth finding from high to low")
 
     def test_ai_approve_does_not_downgrade_rubric_findings(self):
         """AI approve should NOT downgrade rubric-based findings."""
