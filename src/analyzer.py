@@ -810,10 +810,20 @@ IMPORTANT: If the code follows security best practices, respond with "approve" a
                 response = response[:-3]
 
             parsed = json.loads(response.strip())
+            # Normalize concerns to list of strings (models sometimes
+            # return dicts like {"description": "...", "severity": "..."})
+            raw_concerns = parsed.get("concerns", [])
+            concerns = []
+            for c in raw_concerns:
+                if isinstance(c, dict):
+                    c = c.get("description") or c.get("message") or str(c)
+                if not isinstance(c, str):
+                    c = str(c)
+                concerns.append(c)
             return {
                 "summary": parsed.get("summary", ""),
                 "intent": parsed.get("intent", "unknown"),
-                "concerns": parsed.get("concerns", []),
+                "concerns": concerns,
                 "risk_assessment": parsed.get("risk_assessment", "comment"),
                 "confidence": float(parsed.get("confidence", 0.5)),
                 "rubric_scores": parsed.get("rubric_scores", {}),
@@ -864,6 +874,11 @@ IMPORTANT: If the code follows security best practices, respond with "approve" a
         seen = set()
         for r in valid_reviews:
             for c in r.get("concerns", []):
+                # Normalize: models sometimes return concerns as dicts
+                if isinstance(c, dict):
+                    c = c.get("description") or c.get("message") or str(c)
+                if not isinstance(c, str):
+                    c = str(c)
                 c_lower = c.lower()
                 if c_lower not in seen:
                     seen.add(c_lower)

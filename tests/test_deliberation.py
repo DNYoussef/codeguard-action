@@ -274,6 +274,34 @@ class TestDeliberation(unittest.TestCase):
         mmr = result.get("multi_model_review", {})
         self.assertNotIn("deliberation_rounds", mmr)
 
+    def test_dict_concerns_do_not_crash_consensus(self):
+        """Models sometimes return concerns as dicts instead of strings."""
+        analyzer = self._make_analyzer(2)
+        # Simulate model returning structured concern objects
+        review_with_dict_concerns = json.dumps({
+            "summary": "Test",
+            "intent": "feature",
+            "concerns": [
+                {"description": "SQL injection risk", "severity": "high"},
+                {"message": "Missing input validation"},
+                "Plain string concern",
+            ],
+            "risk_assessment": "request_changes",
+            "confidence": 0.85,
+            "rubric_scores": {},
+        })
+
+        with patch.object(analyzer, "_call_openrouter",
+                          return_value=review_with_dict_concerns):
+            result = analyzer._run_deliberation(
+                SAMPLE_DIFF, [], "default", 2, False)
+
+        # Should not crash; concerns should be normalized to strings
+        consensus = result["consensus"]
+        for c in consensus["combined_concerns"]:
+            self.assertIsInstance(c, str)
+        self.assertIn("SQL injection risk", consensus["combined_concerns"])
+
 
 if __name__ == "__main__":
     unittest.main()
