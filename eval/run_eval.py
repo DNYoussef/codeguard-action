@@ -73,6 +73,8 @@ class Result:
     elapsed: float
     errors: list[str]
     forced_tier: str
+    deliberation_rounds: int = 0
+    early_exit: bool = False
 
     @property
     def flagged(self) -> bool:
@@ -109,6 +111,7 @@ def run_sample(
     classifier: RiskClassifier,
     engine: DecisionEngine,
     forced_tier: str | None = None,
+    deliberate: bool = False,
 ) -> Result:
     """Run one diff sample through the full pipeline."""
     errors = []
@@ -120,7 +123,7 @@ def run_sample(
 
     # 1. Analyze (pass forced_tier so analyzer uses correct model count)
     try:
-        analysis = analyzer.analyze(diff_content, rubric="default", tier_override=forced_tier)
+        analysis = analyzer.analyze(diff_content, rubric="default", tier_override=forced_tier, deliberate=deliberate)
     except Exception as e:
         errors.append(f"Analyzer: {e}")
         analysis = {
@@ -163,6 +166,11 @@ def run_sample(
     for me in model_errors:
         errors.append(f"Model: {me}")
 
+    # Deliberation metadata
+    mmr = analysis.get("multi_model_review", {})
+    delib_rounds = mmr.get("deliberation_rounds", 0)
+    delib_early = mmr.get("early_exit", False)
+
     return Result(
         sample=sample_path.name,
         dataset=dataset_name,
@@ -180,6 +188,8 @@ def run_sample(
         elapsed=round(time.monotonic() - start, 2),
         errors=errors,
         forced_tier=forced_tier or "auto",
+        deliberation_rounds=delib_rounds,
+        early_exit=delib_early,
     )
 
 
@@ -396,6 +406,8 @@ def parse_args():
                     help="Dataset to run: hand-crafted, cvefixes, juliet, castle, all")
     p.add_argument("--sample", default=None,
                     help="Run a single sample by filename")
+    p.add_argument("--deliberate", action="store_true",
+                    help="Enable multi-round deliberation (cross-checking between models)")
     p.add_argument("-v", "--verbose", action="store_true",
                     help="Verbose per-sample output")
     return p.parse_args()
@@ -436,7 +448,7 @@ def main():
             rel = path.name
         print(f"\n[{i}/{len(samples)}] {rel}")
 
-        r = run_sample(path, ds_name, analyzer, classifier, engine, args.tier)
+        r = run_sample(path, ds_name, analyzer, classifier, engine, args.tier, args.deliberate)
         results.append(r)
 
         label = "OK" if r.correct else ("FP" if r.false_positive else "FN")
@@ -444,7 +456,12 @@ def main():
               f"decision={r.decision}  [{label}]")
         if r.models_used > 0 or any("Model:" in e for e in r.errors):
             failed = sum(1 for e in r.errors if e.startswith("Model:"))
-            print(f"  AI: {r.models_used} ok, {failed} failed  consensus={r.consensus or '(none)'}  agreement={r.agreement:.2f}")
+            delib_info = ""
+            if r.deliberation_rounds:
+                delib_info = f"  rounds={r.deliberation_rounds}"
+                if r.early_exit:
+                    delib_info += " (early-exit)"
+            print(f"  AI: {r.models_used} ok, {failed} failed  consensus={r.consensus or '(none)'}  agreement={r.agreement:.2f}{delib_info}")
         if r.errors:
             for e in r.errors:
                 print(f"  ERROR: {e}")

@@ -251,7 +251,7 @@ class DiffAnalyzer:
             return bool(self.openai_key)
         return False
 
-    def analyze(self, diff_content: str, rubric: str = "default", tier_override: str = None) -> dict[str, Any]:
+    def analyze(self, diff_content: str, rubric: str = "default", tier_override: str = None, deliberate: bool = False) -> dict[str, Any]:
         """
         Analyze a diff with tier-based multi-model review.
 
@@ -346,9 +346,14 @@ class DiffAnalyzer:
         use_rubric = effective_tier in ("L2", "L3", "L4")
 
         if models_needed > 0 and self.ai_enabled:
-            multi_review = self._run_multi_model_review(
-                diff_content, sensitive_zones, rubric, models_needed, use_rubric
-            )
+            if deliberate and models_needed >= 2:
+                multi_review = self._run_deliberation(
+                    diff_content, sensitive_zones, rubric, models_needed, use_rubric
+                )
+            else:
+                multi_review = self._run_multi_model_review(
+                    diff_content, sensitive_zones, rubric, models_needed, use_rubric
+                )
             result["multi_model_review"] = multi_review
 
             # Extract top-level outputs for entrypoint.py and eval harness
@@ -465,34 +470,9 @@ class DiffAnalyzer:
         # Select which providers to use
         providers = self.available_providers[:models_to_use]
 
-        # Run reviews in parallel
-        reviews = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=models_to_use) as executor:
-            future_to_provider = {
-                executor.submit(
-                    self._get_model_review,
-                    provider, model, diff_content, sensitive_zones, rubric, use_rubric
-                ): (provider, model)
-                for provider, model in providers
-            }
-
-            for future in concurrent.futures.as_completed(future_to_provider):
-                provider, model = future_to_provider[future]
-                try:
-                    review = future.result()
-                    reviews.append(review)
-                except Exception as e:
-                    reviews.append({
-                        "model_name": model,
-                        "provider": provider,
-                        "error": str(e),
-                        "summary": "",
-                        "intent": "",
-                        "concerns": [],
-                        "risk_assessment": "error",
-                        "confidence": 0.0,
-                        "rubric_scores": {}
-                    })
+        # Run reviews in parallel (shared with deliberation path)
+        reviews = self._parallel_review(
+            providers, diff_content, sensitive_zones, rubric, use_rubric)
 
         # Calculate consensus
         failed_reviews = [r for r in reviews if r.get("error")]
@@ -512,6 +492,207 @@ class DiffAnalyzer:
             "rubric_name": rubric if use_rubric else None,
             "consensus": consensus,
         }
+
+    # ------------------------------------------------------------------
+    # Deliberation protocol (multi-round cross-checking)
+    # ------------------------------------------------------------------
+
+    def _run_deliberation(
+        self, diff_content: str, sensitive_zones: list,
+        rubric: str, models_needed: int, use_rubric: bool,
+    ) -> dict:
+        """
+        Multi-round deliberation where models cross-check each other.
+
+        L2 (2 models): up to 2 rounds.  L3 (3 models): up to 3 rounds.
+        Early-exits on unanimous high-confidence agreement after Round 1.
+        """
+        providers = self.available_providers[:min(models_needed, self.max_models_available)]
+        if not providers:
+            return {"reviews": [], "models_used": 0, "consensus": None,
+                    "reason": "No AI providers available"}
+
+        # Round 1: independent parallel review (same prompt as single-pass)
+        r1_reviews = self._parallel_review(
+            providers, diff_content, sensitive_zones, rubric, use_rubric)
+        r1_consensus = self._calculate_consensus(r1_reviews, use_rubric)
+
+        # Early exit on unanimous high-confidence agreement
+        if self._should_exit_early(r1_reviews, r1_consensus):
+            return self._pack_deliberation_result(
+                providers, r1_reviews, [r1_reviews], r1_consensus,
+                use_rubric, rubric, early_exit=True)
+
+        # Round 2: cross-check (each model sees others' Round 1 findings)
+        r2_reviews = self._parallel_crosscheck(
+            providers, r1_reviews, diff_content, round_num=2)
+        r2_consensus = self._calculate_consensus(r2_reviews, use_rubric)
+
+        if len(providers) <= 2:
+            return self._pack_deliberation_result(
+                providers, r2_reviews, [r1_reviews, r2_reviews],
+                r2_consensus, use_rubric, rubric)
+
+        # Round 3 (L3 only): final refinement
+        r3_reviews = self._parallel_crosscheck(
+            providers, r2_reviews, diff_content, round_num=3)
+        r3_consensus = self._calculate_consensus(r3_reviews, use_rubric)
+
+        return self._pack_deliberation_result(
+            providers, r3_reviews, [r1_reviews, r2_reviews, r3_reviews],
+            r3_consensus, use_rubric, rubric)
+
+    def _parallel_review(
+        self, providers: list[tuple[str, str]],
+        diff_content: str, sensitive_zones: list,
+        rubric: str, use_rubric: bool,
+    ) -> list[dict]:
+        """Run independent reviews in parallel (Round 1)."""
+        reviews = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as ex:
+            future_to_provider = {
+                ex.submit(
+                    self._get_model_review,
+                    provider, model, diff_content, sensitive_zones, rubric, use_rubric
+                ): (provider, model)
+                for provider, model in providers
+            }
+            for future in concurrent.futures.as_completed(future_to_provider):
+                provider, model = future_to_provider[future]
+                try:
+                    reviews.append(future.result())
+                except Exception as e:
+                    reviews.append({
+                        "model_name": model, "provider": provider,
+                        "error": str(e), "summary": "", "intent": "",
+                        "concerns": [], "risk_assessment": "error",
+                        "confidence": 0.0, "rubric_scores": {},
+                    })
+        return reviews
+
+    def _parallel_crosscheck(
+        self, providers: list[tuple[str, str]],
+        prev_reviews: list[dict], diff_content: str, round_num: int,
+    ) -> list[dict]:
+        """Run cross-check reviews in parallel.  Each model sees the other
+        models' previous-round findings but NOT the current round's, so all
+        models in a round can execute concurrently."""
+        reviews = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as ex:
+            future_to_idx = {}
+            for i, (provider, model) in enumerate(providers):
+                own = prev_reviews[i] if i < len(prev_reviews) else {}
+                others = [r for j, r in enumerate(prev_reviews) if j != i]
+                prompt = self._build_crosscheck_prompt(
+                    diff_content, own, others, round_num)
+                future_to_idx[ex.submit(
+                    self._call_provider, provider, model, prompt
+                )] = (i, provider, model)
+
+            for future in concurrent.futures.as_completed(future_to_idx):
+                idx, provider, model = future_to_idx[future]
+                try:
+                    raw = future.result()
+                    parsed = self._parse_review_response(raw)
+                    parsed["model_name"] = model
+                    parsed["provider"] = provider
+                    parsed["raw_response"] = raw[:500]
+                    reviews.append(parsed)
+                except Exception as e:
+                    reviews.append({
+                        "model_name": model, "provider": provider,
+                        "error": str(e), "summary": "", "intent": "",
+                        "concerns": [], "risk_assessment": "error",
+                        "confidence": 0.0, "rubric_scores": {},
+                    })
+        return reviews
+
+    def _build_crosscheck_prompt(
+        self, diff_content: str, own_review: dict,
+        peer_reviews: list[dict], round_num: int,
+    ) -> str:
+        """Build the cross-check prompt.  Peers are anonymous to prevent
+        authority bias.  Requires explicit agree/disagree."""
+        peers = ""
+        for i, p in enumerate(peer_reviews):
+            peers += f"\n### Reviewer {i + 1}\n"
+            peers += f"- Verdict: {p.get('risk_assessment')}\n"
+            peers += f"- Confidence: {p.get('confidence')}\n"
+            peers += f"- Concerns: {json.dumps(p.get('concerns', []))}\n"
+
+        diff_section = f"```diff\n{diff_content[:6000]}\n```"
+
+        return f"""You reviewed this diff in Round {round_num - 1}.
+Now cross-check your peers' findings.
+
+## Your Previous Analysis
+- Verdict: {own_review.get('risk_assessment')}
+- Confidence: {own_review.get('confidence')}
+- Concerns: {json.dumps(own_review.get('concerns', []))}
+
+## Peer Reviews
+{peers}
+
+## Code
+{diff_section}
+
+## Your Task
+1. For each peer concern: agree or disagree, with evidence from the code.
+2. What did they catch that you missed?
+3. What's your final verdict? If changed, say why.
+
+Respond with JSON only:
+{{"summary":"...","concerns":[...],"risk_assessment":"approve|request_changes|comment","confidence":0.85,"verdict_changed":false,"change_reason":"..."}}"""
+
+    def _should_exit_early(self, reviews: list[dict], consensus: dict) -> bool:
+        """Exit after Round 1 if all models unanimously agree with high confidence."""
+        if not consensus or consensus.get("agreement_score", 0) < 1.0:
+            return False
+        valid = [r for r in reviews if not r.get("error")]
+        if not valid:
+            return False
+        avg_conf = sum(r.get("confidence", 0) for r in valid) / len(valid)
+        return avg_conf >= 0.85
+
+    def _call_provider(self, provider: str, model: str, prompt: str) -> str:
+        """Dispatch a prompt to the appropriate provider and return raw text."""
+        if provider == "ollama":
+            return self._call_ollama(prompt, model)
+        elif provider == "openrouter":
+            return self._call_openrouter(prompt, model)
+        elif provider == "anthropic":
+            return self._call_anthropic(prompt, model)
+        elif provider == "openai":
+            return self._call_openai(prompt, model)
+        raise ValueError(f"Unknown provider: {provider}")
+
+    def _pack_deliberation_result(
+        self, providers, final_reviews, all_rounds, consensus,
+        use_rubric, rubric, early_exit=False,
+    ) -> dict:
+        """Package deliberation output in a format compatible with
+        _run_multi_model_review so downstream code doesn't change."""
+        failed = [r for r in final_reviews if r.get("error")]
+        successful = [r for r in final_reviews if not r.get("error")]
+        return {
+            "reviews": final_reviews,
+            "models_used": len(successful),
+            "models_failed": len(failed),
+            "models_requested": len(providers),
+            "model_errors": [
+                f"{r.get('provider')}/{r.get('model_name')}: {r.get('error', '')[:120]}"
+                for r in failed
+            ],
+            "used_rubric": use_rubric,
+            "rubric_name": rubric if use_rubric else None,
+            "consensus": consensus,
+            "deliberation_rounds": len(all_rounds),
+            "early_exit": early_exit,
+        }
+
+    # ------------------------------------------------------------------
+    # End deliberation protocol
+    # ------------------------------------------------------------------
 
     def _get_model_review(
         self, provider: str, model: str, diff_content: str,

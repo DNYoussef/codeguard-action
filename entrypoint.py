@@ -73,6 +73,9 @@ def main():
     model_3 = get_env("INPUT_MODEL_3")  # Used for L3+
     ai_review = parse_bool(get_env("INPUT_AI_REVIEW", "true"))
 
+    # Deliberation (multi-round cross-checking)
+    deliberate = parse_bool(get_env("INPUT_DELIBERATE", "false"))
+
     # Decision policy
     decision_policy = get_env("INPUT_DECISION_POLICY", "standard")
 
@@ -151,7 +154,7 @@ def main():
         model_3=model_3,
         ai_review=ai_review
     )
-    analysis = analyzer.analyze(diff_content, rubric=rubric)
+    analysis = analyzer.analyze(diff_content, rubric=rubric, deliberate=deliberate)
     print(f"Files changed: {analysis['files_changed']}")
     print(f"Lines added: {analysis['lines_added']}")
     print(f"Lines removed: {analysis['lines_removed']}")

@@ -320,7 +320,7 @@ class RiskClassifier:
 
         risk_tier = f"L{min(max_score, 4)}"
 
-        return {
+        result = {
             "risk_tier": risk_tier,
             "risk_drivers": risk_drivers,
             "findings": [self._finding_to_dict(f) for f in findings],
@@ -329,8 +329,16 @@ class RiskClassifier:
                 "sensitive_zones": zone_score,
                 "change_size": size_score,
             },
-            "rationale": self._generate_rationale(risk_tier, risk_drivers, findings)
+            "rationale": self._generate_rationale(risk_tier, risk_drivers, findings),
         }
+
+        # Pass through deliberation metadata for observability
+        mmr = analysis.get("multi_model_review", {})
+        if mmr.get("deliberation_rounds") is not None:
+            result["deliberation_rounds"] = mmr["deliberation_rounds"]
+            result["early_exit"] = mmr.get("early_exit", False)
+
+        return result
 
     def _score_files(self, files: list) -> int:
         """Score based on file patterns."""
