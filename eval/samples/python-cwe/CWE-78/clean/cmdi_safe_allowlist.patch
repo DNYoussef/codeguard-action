@@ -1,0 +1,13 @@
+diff --git a/src/utils/network.py b/src/utils/network.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/network.py
+@@ -0,0 +1,7 @@
++import subprocess
++import re
++def ping_host(hostname):
++    if not re.match(r'^[a-zA-Z0-9.-]+$', hostname):
++        raise ValueError("Invalid hostname")
++    result = subprocess.run(["ping", "-c", "1", hostname], capture_output=True, text=True)
++    return result.stdout

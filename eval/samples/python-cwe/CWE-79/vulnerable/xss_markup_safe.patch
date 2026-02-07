@@ -1,0 +1,11 @@
+diff --git a/src/web/comments.py b/src/web/comments.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/comments.py
+@@ -0,0 +1,5 @@
++from flask import request
++from markupsafe import Markup
++def render_comment():
++    text = request.form.get("comment", "")
++    return Markup("<div class='comment'>" + text + "</div>")

@@ -1,0 +1,20 @@
+diff --git a/tests/test_utils.py b/tests/test_utils.py
+index 0000000..1111111 100644
+--- a/tests/test_utils.py
++++ b/tests/test_utils.py
+@@ -1,4 +1,15 @@
+ import pytest
++from src.utils import slugify, paginate
+ 
++def test_slugify():
++    assert slugify("Hello World") == "hello-world"
++    assert slugify("  spaces  ") == "spaces"
++
++def test_paginate():
++    items = list(range(100))
++    result = paginate(items, page=2, per_page=10)
++    assert result["page"] == 2
++    assert len(result["items"]) == 10
++
+ def test_placeholder():
+     pass

@@ -1,0 +1,10 @@
+diff --git a/src/web/api.py b/src/web/api.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/api.py
+@@ -0,0 +1,4 @@
++from flask import request
++def user_data():
++    name = request.args.get("name", "")
++    return "<script>var user = '" + name + "';</script>"

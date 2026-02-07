@@ -1,0 +1,15 @@
+diff --git a/src/utils/extract.py b/src/utils/extract.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/extract.py
+@@ -0,0 +1,9 @@
++import zipfile
++import os
++def extract(zip_path, dest):
++    with zipfile.ZipFile(zip_path) as z:
++        for info in z.infolist():
++            target = os.path.realpath(os.path.join(dest, info.filename))
++            if not target.startswith(os.path.realpath(dest)):
++                raise ValueError(f"Path traversal detected: {info.filename}")
++            z.extract(info, dest)

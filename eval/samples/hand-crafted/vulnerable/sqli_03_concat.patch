@@ -1,0 +1,17 @@
+diff --git a/src/db/orders.py b/src/db/orders.py
+index 0000000..1111111 100644
+--- a/src/db/orders.py
++++ b/src/db/orders.py
+@@ -1,4 +1,12 @@
+ import sqlite3
+ 
++def get_order(order_id):
++    conn = sqlite3.connect("app.db")
++    cursor = conn.cursor()
++    cursor.execute("SELECT * FROM orders WHERE id = " + order_id)
++    row = cursor.fetchone()
++    conn.close()
++    return row
++
+ def list_orders():
+     conn = sqlite3.connect("app.db")

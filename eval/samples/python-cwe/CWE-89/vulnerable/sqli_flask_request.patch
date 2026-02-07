@@ -1,0 +1,14 @@
+diff --git a/src/web/api.py b/src/web/api.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/api.py
+@@ -0,0 +1,8 @@
++from flask import request
++import sqlite3
++def search():
++    q = request.args.get("q", "")
++    conn = sqlite3.connect("app.db")
++    cursor = conn.cursor()
++    cursor.execute("SELECT * FROM items WHERE name LIKE '%" + q + "%'")
++    return cursor.fetchall()

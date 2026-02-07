@@ -1,0 +1,11 @@
+diff --git a/src/utils/crypto.py b/src/utils/crypto.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/crypto.py
+@@ -0,0 +1,5 @@
++from Crypto.Cipher import DES
++KEY = b"12345678"
++def encrypt(data):
++    cipher = DES.new(KEY, DES.MODE_ECB)
++    return cipher.encrypt(data.ljust(8))

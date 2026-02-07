@@ -1,0 +1,16 @@
+diff --git a/src/web/profile.py b/src/web/profile.py
+index 0000000..1111111 100644
+--- a/src/web/profile.py
++++ b/src/web/profile.py
+@@ -1,5 +1,11 @@
+ from flask import Flask, request, render_template_string
+ 
++@app.route("/profile")
++def profile():
++    name = request.args.get("name", "Guest")
++    template = "<h1>Welcome, " + name + "!</h1><p>Your profile page</p>"
++    return render_template_string(template)
++
+ @app.route("/about")
+ def about():
+     return "About page"

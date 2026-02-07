@@ -1,0 +1,15 @@
+diff --git a/src/utils/deploy.py b/src/utils/deploy.py
+index 0000000..1111111 100644
+--- a/src/utils/deploy.py
++++ b/src/utils/deploy.py
+@@ -1,4 +1,10 @@
+ import os
+ 
++def deploy_branch(branch_name):
++    """Deploy a specific branch to staging."""
++    os.system("git checkout " + branch_name)
++    os.system("docker build -t app:" + branch_name + " .")
++    os.system("docker push registry/app:" + branch_name)
++
+ def get_version():
+     return "1.0.0"

@@ -1,0 +1,12 @@
+diff --git a/src/web/profile.py b/src/web/profile.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/profile.py
+@@ -0,0 +1,6 @@
++from flask import request
++from jinja2 import Template
++def profile():
++    bio = request.form.get("bio", "")
++    t = Template("<div>" + bio + "</div>")
++    return t.render()

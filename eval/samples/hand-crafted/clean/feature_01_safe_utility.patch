@@ -1,0 +1,24 @@
+diff --git a/src/utils/helpers.py b/src/utils/helpers.py
+index 0000000..1111111 100644
+--- a/src/utils/helpers.py
++++ b/src/utils/helpers.py
+@@ -1,4 +1,19 @@
+ from pathlib import Path
++import json
++import re
+ 
++def read_config(path):
++    config_path = Path(path)
++    if not config_path.exists():
++        return {}
++    with open(config_path, "r", encoding="utf-8") as f:
++        return json.load(f)
++
++def slugify(text):
++    text = text.lower().strip()
++    text = re.sub(r"[^\w\s-]", "", text)
++    text = re.sub(r"[\s_]+", "-", text)
++    return text.strip("-")
++
+ def get_version():
+     return "1.0.0"

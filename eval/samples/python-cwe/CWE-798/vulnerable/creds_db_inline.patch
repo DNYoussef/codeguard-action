@@ -1,0 +1,14 @@
+diff --git a/src/db/connection.py b/src/db/connection.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/db/connection.py
+@@ -0,0 +1,8 @@
++import psycopg2
++def get_connection():
++    return psycopg2.connect(
++        host="production-db.internal",
++        database="mainapp",
++        user="admin",
++        password="Pr0duction!Pass#2024"
++    )

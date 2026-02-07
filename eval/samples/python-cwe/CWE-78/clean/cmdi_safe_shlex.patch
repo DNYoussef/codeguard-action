@@ -1,0 +1,12 @@
+diff --git a/src/utils/backup.py b/src/utils/backup.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/backup.py
+@@ -0,0 +1,6 @@
++import subprocess
++import shlex
++def backup_db(db_name):
++    cmd = ["pg_dump", shlex.quote(db_name)]
++    with open("backup.sql", "w") as f:
++        subprocess.run(cmd, stdout=f, check=True)

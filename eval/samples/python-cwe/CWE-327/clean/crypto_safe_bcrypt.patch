@@ -1,0 +1,11 @@
+diff --git a/src/auth/password.py b/src/auth/password.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/auth/password.py
+@@ -0,0 +1,5 @@
++import bcrypt
++def hash_password(password):
++    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))
++def verify_password(stored_hash, password):
++    return bcrypt.checkpw(password.encode(), stored_hash)

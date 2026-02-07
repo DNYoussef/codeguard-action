@@ -1,0 +1,9 @@
+diff --git a/src/cache/loader.py b/src/cache/loader.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/cache/loader.py
+@@ -0,0 +1,3 @@
++import json
++def load_session(data):
++    return json.loads(data)

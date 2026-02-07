@@ -1,0 +1,15 @@
+diff --git a/src/web/views.py b/src/web/views.py
+index 0000000..1111111 100644
+--- a/src/web/views.py
++++ b/src/web/views.py
+@@ -1,5 +1,10 @@
+ from flask import Flask, request
+ 
++@app.route("/search")
++def search():
++    query = request.args.get("q", "")
++    return f"<h1>Results for: {query}</h1>"
++
+ @app.route("/")
+ def index():
+     return "Hello World"

@@ -1,0 +1,13 @@
+diff --git a/src/web/download.py b/src/web/download.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/download.py
+@@ -0,0 +1,7 @@
++from flask import request
++import os
++BASE = "/app/exports"
++def get_export():
++    path = os.path.join(BASE, request.args["path"])
++    with open(path, "rb") as f:
++        return f.read()

@@ -1,0 +1,20 @@
+diff --git a/src/auth/password.py b/src/auth/password.py
+index 0000000..1111111 100644
+--- a/src/auth/password.py
++++ b/src/auth/password.py
+@@ -1,4 +1,15 @@
+ import bcrypt
++import secrets
+ 
++def hash_password(password):
++    salt = bcrypt.gensalt(rounds=12)
++    return bcrypt.hashpw(password.encode(), salt)
++
++def verify_password(stored_hash, password):
++    return bcrypt.checkpw(password.encode(), stored_hash)
++
++def generate_token():
++    return secrets.token_urlsafe(32)
++
+ def logout(session_id):
+     pass

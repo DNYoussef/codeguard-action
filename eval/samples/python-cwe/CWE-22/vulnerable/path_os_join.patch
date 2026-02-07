@@ -1,0 +1,11 @@
+diff --git a/src/utils/reader.py b/src/utils/reader.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/reader.py
+@@ -0,0 +1,5 @@
++import os
++def read_log(log_name):
++    path = os.path.join("/var/log/app", log_name)
++    with open(path) as f:
++        return f.read()

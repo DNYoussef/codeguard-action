@@ -1,0 +1,12 @@
+diff --git a/src/email/sender.py b/src/email/sender.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/email/sender.py
+@@ -0,0 +1,6 @@
++import smtplib
++SMTP_PASSWORD = "my-email-password-123"
++def send_email(to, subject, body):
++    server = smtplib.SMTP("smtp.gmail.com", 587)
++    server.login("app@example.com", SMTP_PASSWORD)
++    server.sendmail("app@example.com", to, body)

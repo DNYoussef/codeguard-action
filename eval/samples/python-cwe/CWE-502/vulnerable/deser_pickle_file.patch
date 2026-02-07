@@ -1,0 +1,10 @@
+diff --git a/src/data/reader.py b/src/data/reader.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/data/reader.py
+@@ -0,0 +1,4 @@
++import pickle
++def load_model(path):
++    with open(path, "rb") as f:
++        return pickle.load(f)

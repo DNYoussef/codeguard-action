@@ -1,0 +1,13 @@
+diff --git a/src/utils/crypto.py b/src/utils/crypto.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/crypto.py
+@@ -0,0 +1,7 @@
++from cryptography.hazmat.primitives.ciphers.aead import AESGCM
++import os
++def encrypt(data, key):
++    nonce = os.urandom(12)
++    aesgcm = AESGCM(key)
++    ct = aesgcm.encrypt(nonce, data, None)
++    return nonce + ct

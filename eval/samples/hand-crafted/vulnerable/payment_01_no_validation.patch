@@ -1,0 +1,20 @@
+diff --git a/src/payments/checkout.py b/src/payments/checkout.py
+index 0000000..1111111 100644
+--- a/src/payments/checkout.py
++++ b/src/payments/checkout.py
+@@ -1,4 +1,15 @@
+ import stripe
+ 
++def process_payment(user_id, amount, card_token):
++    """Process payment without amount validation."""
++    # No validation on amount - user could pass negative values
++    charge = stripe.Charge.create(
++        amount=amount,
++        currency="usd",
++        source=card_token,
++        description=f"Charge for user {user_id}",
++    )
++    return charge
++
+ def refund(charge_id):
+     pass

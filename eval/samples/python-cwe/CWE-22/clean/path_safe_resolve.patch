@@ -1,0 +1,15 @@
+diff --git a/src/web/files.py b/src/web/files.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/files.py
+@@ -0,0 +1,9 @@
++from flask import request, send_file, abort
++from pathlib import Path
++UPLOAD_DIR = Path("/data/uploads").resolve()
++def download():
++    filename = request.args.get("file", "")
++    target = (UPLOAD_DIR / filename).resolve()
++    if not str(target).startswith(str(UPLOAD_DIR)):
++        abort(403)
++    return send_file(target)

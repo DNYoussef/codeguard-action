@@ -1,0 +1,10 @@
+diff --git a/src/db/products.py b/src/db/products.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/db/products.py
+@@ -0,0 +1,4 @@
++from django.db.models import Q
++from .models import Product
++def find_product(name):
++    return Product.objects.filter(Q(name__icontains=name))

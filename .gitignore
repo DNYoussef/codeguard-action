@@ -49,3 +49,11 @@ Thumbs.db
 # Evidence bundles (for local testing)
 *.bundle.json
 .guardspine/
+
+# Secrets
+.secrets.toml
+.codeguard/.secrets.toml
+eval/.codeguard/.secrets.toml
+
+# Eval results (local)
+eval/results/

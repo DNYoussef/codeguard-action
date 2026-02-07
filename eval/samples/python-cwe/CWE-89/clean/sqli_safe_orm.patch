@@ -1,0 +1,10 @@
+diff --git a/src/db/orders.py b/src/db/orders.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/db/orders.py
+@@ -0,0 +1,4 @@
++from sqlalchemy.orm import Session
++from models import Order
++def get_order(db: Session, order_id: int):
++    return db.query(Order).filter(Order.id == order_id).first()

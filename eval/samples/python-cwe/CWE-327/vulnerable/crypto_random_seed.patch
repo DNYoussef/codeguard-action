@@ -1,0 +1,10 @@
+diff --git a/src/auth/otp.py b/src/auth/otp.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/auth/otp.py
+@@ -0,0 +1,4 @@
++import random
++def generate_otp():
++    random.seed()
++    return str(random.randint(100000, 999999))
