@@ -158,6 +158,11 @@ def run_sample(
         s = f.get("severity", "medium") if isinstance(f, dict) else getattr(f, "severity", "medium")
         sevs[s] = sevs.get(s, 0) + 1
 
+    # Surface model errors so they're visible in output
+    model_errors = analysis.get("model_errors", [])
+    for me in model_errors:
+        errors.append(f"Model: {me}")
+
     return Result(
         sample=sample_path.name,
         dataset=dataset_name,
@@ -170,8 +175,8 @@ def run_sample(
         severities=sevs,
         decision=packet.decision,
         models_used=analysis.get("models_used", 0) if isinstance(analysis.get("models_used"), int) else 0,
-        consensus=analysis.get("consensus_risk", ""),
-        agreement=analysis.get("agreement_score", 0.0),
+        consensus=analysis.get("consensus_risk") or "",
+        agreement=analysis.get("agreement_score") or 0.0,
         elapsed=round(time.monotonic() - start, 2),
         errors=errors,
         forced_tier=forced_tier or "auto",
@@ -437,8 +442,9 @@ def main():
         label = "OK" if r.correct else ("FP" if r.false_positive else "FN")
         print(f"  {r.tier_preliminary}->{r.tier_final}  zones={r.zones}  findings={r.findings}  "
               f"decision={r.decision}  [{label}]")
-        if r.models_used > 0:
-            print(f"  AI: {r.models_used} models  consensus={r.consensus}  agreement={r.agreement:.2f}")
+        if r.models_used > 0 or any("Model:" in e for e in r.errors):
+            failed = sum(1 for e in r.errors if e.startswith("Model:"))
+            print(f"  AI: {r.models_used} ok, {failed} failed  consensus={r.consensus or '(none)'}  agreement={r.agreement:.2f}")
         if r.errors:
             for e in r.errors:
                 print(f"  ERROR: {e}")

@@ -108,7 +108,7 @@ class DiffAnalyzer:
         "openrouter": [
             "anthropic/claude-4.5-sonnet",
             "openai/gpt-5.2",
-            "google/gemini-3-flash",
+            "google/gemini-2.5-flash",
         ],
         # Ollama models (for air-gapped/local deployments)
         "ollama": [
@@ -351,15 +351,18 @@ class DiffAnalyzer:
             )
             result["multi_model_review"] = multi_review
 
-            # Extract top-level outputs for entrypoint.py
+            # Extract top-level outputs for entrypoint.py and eval harness
             result["models_used"] = multi_review.get("models_used", 0)
+            result["models_failed"] = multi_review.get("models_failed", 0)
+            result["model_errors"] = multi_review.get("model_errors", [])
             consensus = multi_review.get("consensus") or {}
             result["consensus_risk"] = consensus.get("consensus_risk") or ""
             result["agreement_score"] = consensus.get("agreement_score") or 0.0
 
             # Legacy compatibility: also include ai_summary from first model
-            if multi_review.get("reviews"):
-                first_review = multi_review["reviews"][0]
+            successful = [r for r in multi_review.get("reviews", []) if not r.get("error")]
+            if successful:
+                first_review = successful[0]
                 result["ai_summary"] = {
                     "summary": first_review.get("summary", ""),
                     "intent": first_review.get("intent", ""),
@@ -492,12 +495,19 @@ class DiffAnalyzer:
                     })
 
         # Calculate consensus
+        failed_reviews = [r for r in reviews if r.get("error")]
+        successful_reviews = [r for r in reviews if not r.get("error")]
         consensus = self._calculate_consensus(reviews, use_rubric)
 
         return {
             "reviews": reviews,
-            "models_used": len(reviews),
+            "models_used": len(successful_reviews),
+            "models_failed": len(failed_reviews),
             "models_requested": models_needed,
+            "model_errors": [
+                f"{r.get('provider')}/{r.get('model_name')}: {r.get('error', '')[:120]}"
+                for r in failed_reviews
+            ],
             "used_rubric": use_rubric,
             "rubric_name": rubric if use_rubric else None,
             "consensus": consensus,

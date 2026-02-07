@@ -116,18 +116,22 @@ L1+ (AI):   98%+ detection, <5% FP     <- expected after AI wiring activates
 
 ## Post-Fix Bug Fixes (2026-02-07)
 
-### P2: Three bugs fixed in consensus pipeline
+### P2: Six bugs fixed via line-by-line audit
 
-| Bug | File | Root Cause | Fix |
-|-----|------|-----------|-----|
-| consensus_risk=None | analyzer.py | `dict.get("key", default)` returns None when key exists with None value | Changed to `or` pattern throughout |
-| _map_findings crash | run_eval.py | Same dict.get() gotcha on zone=None for AI-CONCERN findings | `fd.get("zone") or "general"` |
-| tier_override missing | analyzer.py | Harness forced_tier didn't control model count | Added `tier_override` param to `analyze()` |
+| # | Severity | Bug | File | Root Cause | Fix |
+|---|----------|-----|------|-----------|-----|
+| 1 | CRITICAL | API failures silently swallowed | analyzer.py | `_get_model_review` catches exception, `_calculate_consensus` filters error reviews, harness shows `models_used=1` with no indication of failure | Surface `model_errors` list in analysis dict, pipe into harness `errors` |
+| 2 | HIGH | `models_used` counts attempts not successes | analyzer.py | `len(reviews)` includes failed reviews | Split into `models_used` (successes) and `models_failed` |
+| 3 | MEDIUM | `google/gemini-3-flash` invalid model | analyzer.py | Not a real OpenRouter model ID, always fails instantly | Changed to `google/gemini-2.5-flash` |
+| 4 | HIGH | consensus_risk=None | analyzer.py | `dict.get("key", default)` returns None when key exists with None value | `or` pattern throughout |
+| 5 | HIGH | _map_findings pydantic crash | run_eval.py | Same dict.get() gotcha on zone=None for AI-CONCERN findings | `fd.get("zone") or "general"` |
+| 6 | MEDIUM | tier_override not controlling model count | analyzer.py | Harness forced_tier only cosmetic, never passed to analyze() | Added `tier_override` param |
 
-Additional cleanup:
-- Removed debug prints from analyzer.py
-- Wrapped `_map_findings` in try/except in run_eval.py
-- Consensus extraction uses `or ""` pattern for None-safety
+Harness output now shows:
+```
+AI: 0 ok, 1 failed  consensus=(none)  agreement=0.00
+ERROR: Model: openrouter/anthropic/claude-4.5-sonnet: Error code: 403 - Key limit exceeded
+```
 
 ### L1/L2 Benchmark Status
 
