@@ -324,15 +324,15 @@ def write_results(results: list[Result], stats: dict, forced_tier: str | None, e
 # ---------------------------------------------------------------------------
 
 def load_api_key() -> str:
-    key = os.environ.get("OPENROUTER_API_KEY", "")
-    if key:
-        return key
+    # Project-specific secrets take priority over env var
     secrets_path = _EVAL / ".codeguard" / ".secrets.toml"
     if secrets_path.exists():
         with open(secrets_path, "rb") as f:
             data = tomllib.load(f)
-        return data.get("openrouter_api_key", "")
-    return ""
+        key = data.get("openrouter_api_key", "")
+        if key:
+            return key
+    return os.environ.get("OPENROUTER_API_KEY", "")
 
 
 def collect_samples(samples_dir: Path, dataset: str, sample_filter: str | None) -> list[tuple[Path, str]]:
