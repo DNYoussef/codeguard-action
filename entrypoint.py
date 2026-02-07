@@ -76,6 +76,10 @@ def main():
     # Deliberation (multi-round cross-checking)
     deliberate = parse_bool(get_env("INPUT_DELIBERATE", "false"))
 
+    # Auto-merge
+    auto_merge = parse_bool(get_env("INPUT_AUTO_MERGE", "false"))
+    auto_merge_method = get_env("INPUT_AUTO_MERGE_METHOD", "squash")
+
     # Decision policy
     decision_policy = get_env("INPUT_DECISION_POLICY", "standard")
 
@@ -288,8 +292,37 @@ def main():
             sys.exit(1)
     else:
         print(f"::notice::Decision Engine: MERGE - clean to merge (risk tier {risk_tier})")
+        if auto_merge and risk_tier != "L4":
+            bundle_id = bundle["bundle_id"] if generate_bundle and bundle_path else "none"
+            _auto_merge(pr, auto_merge_method, risk_tier, bundle_id)
 
     sys.exit(0)
+
+
+def _auto_merge(pr: PullRequest, merge_method: str, risk_tier: str, bundle_id: str) -> bool:
+    """Merge the PR. Fail loud on error, don't swallow exceptions."""
+    if pr.state != "open":
+        print(f"::warning::PR #{pr.number} is {pr.state}, skipping merge")
+        return False
+    if pr.mergeable is False:
+        print(f"::warning::PR #{pr.number} has conflicts, skipping merge")
+        return False
+    title = pr.title
+    body = (f"Auto-merged by CodeGuard (risk: {risk_tier})\n\n"
+            f"Evidence bundle: {bundle_id}")
+    result = pr.merge(
+        commit_title=title,
+        commit_message=body,
+        merge_method=merge_method,
+        sha=pr.head.sha)
+    if result.merged:
+        print(f"::notice::Auto-merged PR #{pr.number} as {result.sha[:7]}")
+        set_output("merged", "true")
+        set_output("merge_sha", result.sha)
+        return True
+    print(f"::error::Merge failed: {result.message}")
+    set_output("merged", "false")
+    return False
 
 
 def _map_findings(finding_dicts: list[dict]) -> list[AuditFinding]:

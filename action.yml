@@ -83,6 +83,14 @@ inputs:
     description: 'Decision engine policy (standard, strict, advisory, or path to custom YAML)'
     required: false
     default: 'standard'
+  auto_merge:
+    description: 'Auto-merge clean PRs (decision=merge, tier L0-L3). Requires contents:write permission.'
+    required: false
+    default: 'false'
+  auto_merge_method:
+    description: 'Merge method: merge, squash, or rebase'
+    required: false
+    default: 'squash'
 
 outputs:
   risk_tier:
@@ -103,6 +111,10 @@ outputs:
     description: 'How much models agreed (0.0-1.0)'
   decision:
     description: 'Decision engine verdict: merge, merge-with-conditions, or block'
+  merged:
+    description: 'Whether PR was auto-merged'
+  merge_sha:
+    description: 'Merge commit SHA (if merged)'
 
 runs:
   using: 'docker'
