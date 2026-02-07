@@ -1,0 +1,11 @@
+diff --git a/src/auth/token.py b/src/auth/token.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/auth/token.py
+@@ -0,0 +1,5 @@
++import hashlib
++import time
++def generate_token(user_id):
++    data = f"{user_id}:{time.time()}"
++    return hashlib.sha1(data.encode()).hexdigest()

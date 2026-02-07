@@ -1,0 +1,10 @@
+diff --git a/src/web/search.py b/src/web/search.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/search.py
+@@ -0,0 +1,4 @@
++from flask import request, render_template_string
++def search_results():
++    query = request.args.get("q", "")
++    return render_template_string("<p>Results for: " + query + "</p>")

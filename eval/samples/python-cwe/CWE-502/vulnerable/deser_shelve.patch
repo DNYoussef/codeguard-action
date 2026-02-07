@@ -1,0 +1,10 @@
+diff --git a/src/data/store.py b/src/data/store.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/data/store.py
+@@ -0,0 +1,4 @@
++import shelve
++def get_user_data(user_id):
++    with shelve.open("users") as db:
++        return db[user_id]

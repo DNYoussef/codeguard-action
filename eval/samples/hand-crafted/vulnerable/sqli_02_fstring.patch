@@ -1,0 +1,17 @@
+diff --git a/src/db/search.py b/src/db/search.py
+index 0000000..1111111 100644
+--- a/src/db/search.py
++++ b/src/db/search.py
+@@ -1,4 +1,12 @@
+ import sqlite3
+ 
++def search_users(term):
++    conn = sqlite3.connect("app.db")
++    cursor = conn.cursor()
++    cursor.execute(f"SELECT * FROM users WHERE name LIKE '%{term}%'")
++    rows = cursor.fetchall()
++    conn.close()
++    return rows
++
+ def count_users():
+     conn = sqlite3.connect("app.db")

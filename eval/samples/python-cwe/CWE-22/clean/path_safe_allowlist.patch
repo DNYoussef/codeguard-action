@@ -1,0 +1,12 @@
+diff --git a/src/web/static.py b/src/web/static.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/static.py
+@@ -0,0 +1,6 @@
++ALLOWED_TEMPLATES = {"index.html", "about.html", "contact.html"}
++def get_template(name):
++    if name not in ALLOWED_TEMPLATES:
++        raise ValueError("Template not allowed")
++    with open(f"templates/{name}") as f:
++        return f.read()

@@ -1,0 +1,8 @@
+diff --git a/src/utils/plugin.py b/src/utils/plugin.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/plugin.py
+@@ -0,0 +1,2 @@
++def run_plugin(plugin_code):
++    exec(plugin_code)

@@ -1,0 +1,18 @@
+diff --git a/src/cache/loader.py b/src/cache/loader.py
+index 0000000..1111111 100644
+--- a/src/cache/loader.py
++++ b/src/cache/loader.py
+@@ -1,4 +1,13 @@
+ import pickle
++import yaml
+ 
++def load_user_data(data_bytes):
++    """Load user-uploaded data from cache."""
++    return pickle.loads(data_bytes)
++
++def load_config(config_string):
++    """Load YAML config from user input."""
++    return yaml.load(config_string)
++
+ def save_cache(key, value):
+     pass

@@ -1,0 +1,12 @@
+diff --git a/src/auth/hash.py b/src/auth/hash.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/auth/hash.py
+@@ -0,0 +1,6 @@
++from argon2 import PasswordHasher
++ph = PasswordHasher()
++def hash_password(password):
++    return ph.hash(password)
++def verify_password(stored_hash, password):
++    return ph.verify(stored_hash, password)

@@ -1,0 +1,18 @@
+diff --git a/src/utils/calculator.py b/src/utils/calculator.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/calculator.py
+@@ -0,0 +1,12 @@
++import ast
++import operator
++OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul}
++def calculate(expression):
++    tree = ast.parse(expression, mode='eval')
++    return _eval_node(tree.body)
++def _eval_node(node):
++    if isinstance(node, ast.Num):
++        return node.n
++    if isinstance(node, ast.BinOp):
++        return OPS[type(node.op)](_eval_node(node.left), _eval_node(node.right))
++    raise ValueError("Unsupported expression")

@@ -1,0 +1,10 @@
+diff --git a/src/config/aws.py b/src/config/aws.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/config/aws.py
+@@ -0,0 +1,4 @@
++import os
++AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
++AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
++AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")

@@ -1,0 +1,10 @@
+diff --git a/src/utils/deploy.py b/src/utils/deploy.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/utils/deploy.py
+@@ -0,0 +1,4 @@
++import subprocess
++def deploy_branch(branch_name):
++    subprocess.run(["git", "checkout", branch_name], check=True)
++    subprocess.run(["docker", "build", "-t", f"app:{branch_name}", "."], check=True)

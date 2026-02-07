@@ -86,9 +86,15 @@ class RiskClassifier:
         "payment": "critical",
         "crypto": "critical",
         "pii": "critical",
+        "command_injection": "critical",
+        "deserialization": "critical",
+        "xss": "high",
         "auth": "high",
         "security": "high",
         "database": "high",
+        "template_injection": "high",
+        "path_traversal": "high",
+        "weak_crypto": "high",
         "config": "medium",
         "infra": "medium",
     }
@@ -221,9 +227,19 @@ class RiskClassifier:
         """Emit a warning in GitHub Actions-friendly format."""
         print(f"::warning::{message}")
 
+    @staticmethod
+    def _downgrade_severity(severity: str) -> str:
+        """Downgrade severity by one level."""
+        return {"critical": "high", "high": "medium", "medium": "low", "low": "info"}.get(severity, severity)
+
     def classify(self, analysis: dict[str, Any]) -> dict[str, Any]:
         """
         Classify risk based on analysis results.
+
+        Uses three signal sources:
+          1. Zone-based keyword findings (deterministic)
+          2. Rubric rule findings (deterministic)
+          3. AI multi-model consensus (when available) to modulate severity
 
         Returns:
             Dict with: risk_tier, risk_drivers, findings, rationale
@@ -244,6 +260,50 @@ class RiskClassifier:
         rubric_findings = self._apply_rubric(files)
         findings.extend(rubric_findings)
 
+        # --- AI Consensus Modulation ---
+        # When AI models reviewed the diff, use their consensus to adjust
+        # finding severity. This reduces FPs (AI approves benign keyword
+        # matches) and catches FNs (AI flags issues rules missed).
+        consensus_risk = analysis.get("consensus_risk", "")
+        agreement_score = analysis.get("agreement_score", 0.0)
+
+        if consensus_risk == "approve" and agreement_score >= 0.6:
+            # AI majority approved: double-downgrade zone-only findings.
+            # Threshold 0.6 = simple majority (2/3 at L3, unanimous at L1/L2).
+            # Double downgrade (critical->medium, high->low) drops findings
+            # below DecisionEngine condition_rules (high+provable), making
+            # them advisory-only. Semantically correct: zone findings are
+            # keyword matches, and the AI confirmed they're safe.
+            # Rubric findings are NOT downgraded (they are organizational policy).
+            for f in findings:
+                if f.zone and not f.rule_id.startswith("RUBRIC"):
+                    f.severity = self._downgrade_severity(f.severity)
+                    f.severity = self._downgrade_severity(f.severity)
+
+        elif consensus_risk == "request_changes" and agreement_score >= 0.6:
+            # AI flagged issues: upgrade medium findings to high
+            for f in findings:
+                if f.severity == "medium":
+                    f.severity = "high"
+            # Inject AI concern findings (non-provable, so they can only
+            # trigger MERGE-WITH-CONDITIONS via DecisionEngine, never BLOCK)
+            mmr = analysis.get("multi_model_review", {})
+            ai_concerns = []
+            if mmr.get("consensus"):
+                ai_concerns = mmr["consensus"].get("combined_concerns", [])
+            elif ai_summary.get("concerns"):
+                ai_concerns = ai_summary["concerns"]
+            for idx, concern in enumerate(ai_concerns[:3]):
+                findings.append(Finding(
+                    id=f"AI-CONCERN-{idx}",
+                    severity="high",
+                    message=f"AI concern: {concern}",
+                    file="",
+                    line=None,
+                    rule_id="ai-consensus",
+                    zone=None,
+                ))
+
         # Calculate risk drivers
         risk_drivers = self._calculate_drivers(
             files, sensitive_zones, findings, ai_summary
@@ -260,7 +320,7 @@ class RiskClassifier:
 
         risk_tier = f"L{min(max_score, 4)}"
 
-        return {
+        result = {
             "risk_tier": risk_tier,
             "risk_drivers": risk_drivers,
             "findings": [self._finding_to_dict(f) for f in findings],
@@ -269,8 +329,16 @@ class RiskClassifier:
                 "sensitive_zones": zone_score,
                 "change_size": size_score,
             },
-            "rationale": self._generate_rationale(risk_tier, risk_drivers, findings)
+            "rationale": self._generate_rationale(risk_tier, risk_drivers, findings),
         }
+
+        # Pass through deliberation metadata for observability
+        mmr = analysis.get("multi_model_review", {})
+        if mmr.get("deliberation_rounds") is not None:
+            result["deliberation_rounds"] = mmr["deliberation_rounds"]
+            result["early_exit"] = mmr.get("early_exit", False)
+
+        return result
 
     def _score_files(self, files: list) -> int:
         """Score based on file patterns."""

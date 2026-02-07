@@ -1,0 +1,16 @@
+diff --git a/src/db/reports.py b/src/db/reports.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/db/reports.py
+@@ -0,0 +1,10 @@
++import sqlite3
++def generate_report(start_date, end_date, status):
++    conn = sqlite3.connect("app.db")
++    cursor = conn.cursor()
++    sql = "SELECT * FROM orders "
++    sql += "WHERE created_at >= '" + start_date + "' "
++    sql += "AND created_at <= '" + end_date + "' "
++    sql += "AND status = '" + status + "'"
++    cursor.execute(sql)
++    return cursor.fetchall()

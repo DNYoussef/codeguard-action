@@ -1,0 +1,11 @@
+diff --git a/src/web/views.py b/src/web/views.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/web/views.py
+@@ -0,0 +1,5 @@
++from flask import request
++from markupsafe import escape
++def greet():
++    name = escape(request.args.get("name", ""))
++    return f"<h1>Hello, {name}</h1>"

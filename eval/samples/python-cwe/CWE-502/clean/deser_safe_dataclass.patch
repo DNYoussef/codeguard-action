@@ -1,0 +1,16 @@
+diff --git a/src/data/reader.py b/src/data/reader.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/data/reader.py
+@@ -0,0 +1,10 @@
++import json
++from dataclasses import dataclass
++@dataclass
++class Model:
++    name: str
++    weights: list[float]
++def load_model(path):
++    with open(path, "r") as f:
++        data = json.load(f)
++    return Model(**data)

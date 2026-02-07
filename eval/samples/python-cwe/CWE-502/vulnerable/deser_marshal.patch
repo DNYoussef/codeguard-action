@@ -1,0 +1,9 @@
+diff --git a/src/cache/codec.py b/src/cache/codec.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/cache/codec.py
+@@ -0,0 +1,3 @@
++import marshal
++def decode_bytecode(data):
++    return marshal.loads(data)

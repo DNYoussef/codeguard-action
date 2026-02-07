@@ -76,6 +76,12 @@ class DiffAnalyzer:
         "pii": r"(email|phone|address|ssn|social.?security|date.?of.?birth)",
         "config": r"(config|setting|environment|env\.|\.env)",
         "infra": r"(terraform|kubernetes|docker|aws|azure|gcp|cloudformation)",
+        "command_injection": r"(subprocess|os\.system|os\.popen|child_process|shell\s*=\s*True|exec\(|eval\(|spawn)",
+        "deserialization": r"(pickle\.load|yaml\.load\(|yaml\.unsafe_load|marshal\.load|shelve\.open|jsonpickle|unserialize|readObject)",
+        "template_injection": r"(render_template_string|Template\(|Jinja2|mako\.template|format_map|\.safe_substitute|mark_safe|Markup\(|server.?side.?template)",
+        "path_traversal": r"(\.\./|\.\.\\|os\.path\.join|path\.join|send_file|sendFile|readFile|shutil\.(copy|move|copytree)|extractall|zipfile\.ZipFile|tarfile\.open)",
+        "weak_crypto": r"(md5|sha1[^0-9]|DES\b|RC4|ECB|random\.random|random\.seed|Math\.random|weak.?hash|insecure.?random)",
+        "xss": r"(<script|<img\s|onerror|onload|innerHTML|\.html\(|document\.write|mark_safe|Markup\(|\bResponse\s*\(.*<)",
     }
 
     # File patterns for preliminary risk tier estimation
@@ -102,7 +108,7 @@ class DiffAnalyzer:
         "openrouter": [
             "anthropic/claude-4.5-sonnet",
             "openai/gpt-5.2",
-            "google/gemini-3-flash",
+            "google/gemini-2.5-flash",
         ],
         # Ollama models (for air-gapped/local deployments)
         "ollama": [
@@ -245,7 +251,7 @@ class DiffAnalyzer:
             return bool(self.openai_key)
         return False
 
-    def analyze(self, diff_content: str, rubric: str = "default") -> dict[str, Any]:
+    def analyze(self, diff_content: str, rubric: str = "default", tier_override: str = None, deliberate: bool = False) -> dict[str, Any]:
         """
         Analyze a diff with tier-based multi-model review.
 
@@ -334,28 +340,34 @@ class DiffAnalyzer:
             "preliminary_tier": preliminary_tier,
         }
 
-        # Run tier-based multi-model review
-        models_needed = self.TIER_MODEL_COUNT.get(preliminary_tier, 1)
-        use_rubric = preliminary_tier in ("L2", "L3", "L4")
+        # Apply tier override if provided (e.g., from eval harness)
+        effective_tier = tier_override or preliminary_tier
+        models_needed = self.TIER_MODEL_COUNT.get(effective_tier, 1)
+        use_rubric = effective_tier in ("L2", "L3", "L4")
 
         if models_needed > 0 and self.ai_enabled:
-            multi_review = self._run_multi_model_review(
-                diff_content, sensitive_zones, rubric, models_needed, use_rubric
-            )
+            if deliberate and models_needed >= 2:
+                multi_review = self._run_deliberation(
+                    diff_content, sensitive_zones, rubric, models_needed, use_rubric
+                )
+            else:
+                multi_review = self._run_multi_model_review(
+                    diff_content, sensitive_zones, rubric, models_needed, use_rubric
+                )
             result["multi_model_review"] = multi_review
 
-            # Extract top-level outputs for entrypoint.py
+            # Extract top-level outputs for entrypoint.py and eval harness
             result["models_used"] = multi_review.get("models_used", 0)
-            if multi_review.get("consensus"):
-                result["consensus_risk"] = multi_review["consensus"].get("consensus_risk", "")
-                result["agreement_score"] = multi_review["consensus"].get("agreement_score", 0.0)
-            else:
-                result["consensus_risk"] = ""
-                result["agreement_score"] = 0.0
+            result["models_failed"] = multi_review.get("models_failed", 0)
+            result["model_errors"] = multi_review.get("model_errors", [])
+            consensus = multi_review.get("consensus") or {}
+            result["consensus_risk"] = consensus.get("consensus_risk") or ""
+            result["agreement_score"] = consensus.get("agreement_score") or 0.0
 
             # Legacy compatibility: also include ai_summary from first model
-            if multi_review.get("reviews"):
-                first_review = multi_review["reviews"][0]
+            successful = [r for r in multi_review.get("reviews", []) if not r.get("error")]
+            if successful:
+                first_review = successful[0]
                 result["ai_summary"] = {
                     "summary": first_review.get("summary", ""),
                     "intent": first_review.get("intent", ""),
@@ -458,46 +470,229 @@ class DiffAnalyzer:
         # Select which providers to use
         providers = self.available_providers[:models_to_use]
 
-        # Run reviews in parallel
+        # Run reviews in parallel (shared with deliberation path)
+        reviews = self._parallel_review(
+            providers, diff_content, sensitive_zones, rubric, use_rubric)
+
+        # Calculate consensus
+        failed_reviews = [r for r in reviews if r.get("error")]
+        successful_reviews = [r for r in reviews if not r.get("error")]
+        consensus = self._calculate_consensus(reviews, use_rubric)
+
+        return {
+            "reviews": reviews,
+            "models_used": len(successful_reviews),
+            "models_failed": len(failed_reviews),
+            "models_requested": models_needed,
+            "model_errors": [
+                f"{r.get('provider')}/{r.get('model_name')}: {r.get('error', '')[:120]}"
+                for r in failed_reviews
+            ],
+            "used_rubric": use_rubric,
+            "rubric_name": rubric if use_rubric else None,
+            "consensus": consensus,
+        }
+
+    # ------------------------------------------------------------------
+    # Deliberation protocol (multi-round cross-checking)
+    # ------------------------------------------------------------------
+
+    def _run_deliberation(
+        self, diff_content: str, sensitive_zones: list,
+        rubric: str, models_needed: int, use_rubric: bool,
+    ) -> dict:
+        """
+        Multi-round deliberation where models cross-check each other.
+
+        L2 (2 models): up to 2 rounds.  L3 (3 models): up to 3 rounds.
+        Early-exits on unanimous high-confidence agreement after Round 1.
+        """
+        providers = self.available_providers[:min(models_needed, self.max_models_available)]
+        if not providers:
+            return {"reviews": [], "models_used": 0, "consensus": None,
+                    "reason": "No AI providers available"}
+
+        # Round 1: independent parallel review (same prompt as single-pass)
+        r1_reviews = self._parallel_review(
+            providers, diff_content, sensitive_zones, rubric, use_rubric)
+        r1_consensus = self._calculate_consensus(r1_reviews, use_rubric)
+
+        # Early exit on unanimous high-confidence agreement
+        if self._should_exit_early(r1_reviews, r1_consensus):
+            return self._pack_deliberation_result(
+                providers, r1_reviews, [r1_reviews], r1_consensus,
+                use_rubric, rubric, early_exit=True)
+
+        # Round 2: cross-check (each model sees others' Round 1 findings)
+        r2_reviews = self._parallel_crosscheck(
+            providers, r1_reviews, diff_content, round_num=2)
+        r2_consensus = self._calculate_consensus(r2_reviews, use_rubric)
+
+        if len(providers) <= 2:
+            return self._pack_deliberation_result(
+                providers, r2_reviews, [r1_reviews, r2_reviews],
+                r2_consensus, use_rubric, rubric)
+
+        # Round 3 (L3 only): final refinement
+        r3_reviews = self._parallel_crosscheck(
+            providers, r2_reviews, diff_content, round_num=3)
+        r3_consensus = self._calculate_consensus(r3_reviews, use_rubric)
+
+        return self._pack_deliberation_result(
+            providers, r3_reviews, [r1_reviews, r2_reviews, r3_reviews],
+            r3_consensus, use_rubric, rubric)
+
+    def _parallel_review(
+        self, providers: list[tuple[str, str]],
+        diff_content: str, sensitive_zones: list,
+        rubric: str, use_rubric: bool,
+    ) -> list[dict]:
+        """Run independent reviews in parallel (Round 1)."""
         reviews = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=models_to_use) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as ex:
             future_to_provider = {
-                executor.submit(
+                ex.submit(
                     self._get_model_review,
                     provider, model, diff_content, sensitive_zones, rubric, use_rubric
                 ): (provider, model)
                 for provider, model in providers
             }
-
             for future in concurrent.futures.as_completed(future_to_provider):
                 provider, model = future_to_provider[future]
                 try:
-                    review = future.result()
-                    reviews.append(review)
+                    reviews.append(future.result())
                 except Exception as e:
                     reviews.append({
-                        "model_name": model,
-                        "provider": provider,
-                        "error": str(e),
-                        "summary": "",
-                        "intent": "",
-                        "concerns": [],
-                        "risk_assessment": "error",
-                        "confidence": 0.0,
-                        "rubric_scores": {}
+                        "model_name": model, "provider": provider,
+                        "error": str(e), "summary": "", "intent": "",
+                        "concerns": [], "risk_assessment": "error",
+                        "confidence": 0.0, "rubric_scores": {},
                     })
+        return reviews
 
-        # Calculate consensus
-        consensus = self._calculate_consensus(reviews, use_rubric)
+    def _parallel_crosscheck(
+        self, providers: list[tuple[str, str]],
+        prev_reviews: list[dict], diff_content: str, round_num: int,
+    ) -> list[dict]:
+        """Run cross-check reviews in parallel.  Each model sees the other
+        models' previous-round findings but NOT the current round's, so all
+        models in a round can execute concurrently."""
+        reviews = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(providers)) as ex:
+            future_to_idx = {}
+            for i, (provider, model) in enumerate(providers):
+                own = prev_reviews[i] if i < len(prev_reviews) else {}
+                others = [r for j, r in enumerate(prev_reviews) if j != i]
+                prompt = self._build_crosscheck_prompt(
+                    diff_content, own, others, round_num)
+                future_to_idx[ex.submit(
+                    self._call_provider, provider, model, prompt
+                )] = (i, provider, model)
 
+            for future in concurrent.futures.as_completed(future_to_idx):
+                idx, provider, model = future_to_idx[future]
+                try:
+                    raw = future.result()
+                    parsed = self._parse_review_response(raw)
+                    parsed["model_name"] = model
+                    parsed["provider"] = provider
+                    parsed["raw_response"] = raw[:500]
+                    reviews.append(parsed)
+                except Exception as e:
+                    reviews.append({
+                        "model_name": model, "provider": provider,
+                        "error": str(e), "summary": "", "intent": "",
+                        "concerns": [], "risk_assessment": "error",
+                        "confidence": 0.0, "rubric_scores": {},
+                    })
+        return reviews
+
+    def _build_crosscheck_prompt(
+        self, diff_content: str, own_review: dict,
+        peer_reviews: list[dict], round_num: int,
+    ) -> str:
+        """Build the cross-check prompt.  Peers are anonymous to prevent
+        authority bias.  Requires explicit agree/disagree."""
+        peers = ""
+        for i, p in enumerate(peer_reviews):
+            peers += f"\n### Reviewer {i + 1}\n"
+            peers += f"- Verdict: {p.get('risk_assessment')}\n"
+            peers += f"- Confidence: {p.get('confidence')}\n"
+            peers += f"- Concerns: {json.dumps(p.get('concerns', []))}\n"
+
+        diff_section = f"```diff\n{diff_content[:6000]}\n```"
+
+        return f"""You reviewed this diff in Round {round_num - 1}.
+Now cross-check your peers' findings.
+
+## Your Previous Analysis
+- Verdict: {own_review.get('risk_assessment')}
+- Confidence: {own_review.get('confidence')}
+- Concerns: {json.dumps(own_review.get('concerns', []))}
+
+## Peer Reviews
+{peers}
+
+## Code
+{diff_section}
+
+## Your Task
+1. For each peer concern: agree or disagree, with evidence from the code.
+2. What did they catch that you missed?
+3. What's your final verdict? If changed, say why.
+
+Respond with JSON only:
+{{"summary":"...","concerns":[...],"risk_assessment":"approve|request_changes|comment","confidence":0.85,"verdict_changed":false,"change_reason":"..."}}"""
+
+    def _should_exit_early(self, reviews: list[dict], consensus: dict) -> bool:
+        """Exit after Round 1 if all models unanimously agree with high confidence."""
+        if not consensus or consensus.get("agreement_score", 0) < 1.0:
+            return False
+        valid = [r for r in reviews if not r.get("error")]
+        if not valid:
+            return False
+        avg_conf = sum(r.get("confidence", 0) for r in valid) / len(valid)
+        return avg_conf >= 0.85
+
+    def _call_provider(self, provider: str, model: str, prompt: str) -> str:
+        """Dispatch a prompt to the appropriate provider and return raw text."""
+        if provider == "ollama":
+            return self._call_ollama(prompt, model)
+        elif provider == "openrouter":
+            return self._call_openrouter(prompt, model)
+        elif provider == "anthropic":
+            return self._call_anthropic(prompt, model)
+        elif provider == "openai":
+            return self._call_openai(prompt, model)
+        raise ValueError(f"Unknown provider: {provider}")
+
+    def _pack_deliberation_result(
+        self, providers, final_reviews, all_rounds, consensus,
+        use_rubric, rubric, early_exit=False,
+    ) -> dict:
+        """Package deliberation output in a format compatible with
+        _run_multi_model_review so downstream code doesn't change."""
+        failed = [r for r in final_reviews if r.get("error")]
+        successful = [r for r in final_reviews if not r.get("error")]
         return {
-            "reviews": reviews,
-            "models_used": len(reviews),
-            "models_requested": models_needed,
+            "reviews": final_reviews,
+            "models_used": len(successful),
+            "models_failed": len(failed),
+            "models_requested": len(providers),
+            "model_errors": [
+                f"{r.get('provider')}/{r.get('model_name')}: {r.get('error', '')[:120]}"
+                for r in failed
+            ],
             "used_rubric": use_rubric,
             "rubric_name": rubric if use_rubric else None,
             "consensus": consensus,
+            "deliberation_rounds": len(all_rounds),
+            "early_exit": early_exit,
         }
+
+    # ------------------------------------------------------------------
+    # End deliberation protocol
+    # ------------------------------------------------------------------
 
     def _get_model_review(
         self, provider: str, model: str, diff_content: str,
@@ -560,29 +755,47 @@ For {rubric.upper()} compliance, evaluate:
 Include rubric_scores in your JSON response.
 """
 
-        return f"""You are a senior code reviewer conducting a security and compliance review.
+        return f"""You are a senior security engineer triaging a code diff. Your job is to distinguish SAFE code from DANGEROUS code. Most code is safe. Only flag code that is actually exploitable.
+
+## Decision Criteria
+
+**approve** - Use this when:
+- Code uses parameterized queries (?, %s, :name placeholders) even if it touches SQL
+- Code uses safe crypto (bcrypt, argon2, scrypt, AES-256, secrets module) even if it touches crypto
+- Code reads credentials from env vars, vaults, keyrings, config files (not hardcoded)
+- Code uses subprocess with list args (no shell=True), shlex.quote, or allowlists
+- Code uses safe deserialization (json.loads, dataclasses, msgpack, yaml.safe_load)
+- Code uses path sanitization (os.path.basename, Path.resolve, allowlists)
+- Code uses template engines with autoescaping (Jinja2 default, Django templates)
+- Code is tests, docs, or configuration only
+
+**request_changes** - Use this ONLY when code has an actual exploitable vulnerability:
+- Unsanitized user input in SQL, commands, templates, or file paths
+- Hardcoded secrets, API keys, passwords as string literals in source
+- Dangerous deserialization of untrusted input (pickle, yaml.load without SafeLoader)
+- Disabled security features (shell=True with user input, autoescaping off)
+- Weak crypto for security purposes (MD5/SHA1 for passwords, random.random for tokens)
+
+**comment** - Use when code is neither clearly safe nor clearly dangerous
 
 ## Diff to Review
-Sensitive zones detected: {len(sensitive_zones)}
-Zones: {', '.join(set(z['zone'] for z in sensitive_zones[:5])) if sensitive_zones else 'None'}
 
 ```diff
 {diff_content[:6000]}
 ```
 {rubric_section}
-## Required Response (JSON format)
+## Required Response (JSON only)
 
-Respond with ONLY valid JSON:
 {{
-    "summary": "One-sentence summary of what changed",
+    "summary": "One sentence: what this code does",
     "intent": "feature|bugfix|refactor|config|security|documentation",
-    "concerns": ["List of security/compliance concerns, if any"],
+    "concerns": [],
     "risk_assessment": "approve|request_changes|comment",
     "confidence": 0.85,
-    "rubric_scores": {{"security_impact": 4, "code_quality": 4, "test_coverage": 3, "documentation": 3, "rollback_safety": 4}}
+    "rubric_scores": {{}}
 }}
 
-Be specific about concerns. If no concerns, use empty array."""
+IMPORTANT: If the code follows security best practices, respond with "approve" and empty concerns array. Only use "request_changes" for actual vulnerabilities."""
 
     def _parse_review_response(self, response: str) -> dict:
         """Parse the JSON response from a model."""
@@ -597,10 +810,20 @@ Be specific about concerns. If no concerns, use empty array."""
                 response = response[:-3]
 
             parsed = json.loads(response.strip())
+            # Normalize concerns to list of strings (models sometimes
+            # return dicts like {"description": "...", "severity": "..."})
+            raw_concerns = parsed.get("concerns", [])
+            concerns = []
+            for c in raw_concerns:
+                if isinstance(c, dict):
+                    c = c.get("description") or c.get("message") or str(c)
+                if not isinstance(c, str):
+                    c = str(c)
+                concerns.append(c)
             return {
                 "summary": parsed.get("summary", ""),
                 "intent": parsed.get("intent", "unknown"),
-                "concerns": parsed.get("concerns", []),
+                "concerns": concerns,
                 "risk_assessment": parsed.get("risk_assessment", "comment"),
                 "confidence": float(parsed.get("confidence", 0.5)),
                 "rubric_scores": parsed.get("rubric_scores", {}),
@@ -625,8 +848,8 @@ Be specific about concerns. If no concerns, use empty array."""
         if not valid_reviews:
             return {"error": "All model reviews failed"}
 
-        # Count risk assessments
-        assessments = [r.get("risk_assessment", "comment") for r in valid_reviews]
+        # Count risk assessments (use `or` to handle None values)
+        assessments = [r.get("risk_assessment") or "comment" for r in valid_reviews]
         assessment_counts = {}
         for a in assessments:
             assessment_counts[a] = assessment_counts.get(a, 0) + 1
@@ -651,6 +874,11 @@ Be specific about concerns. If no concerns, use empty array."""
         seen = set()
         for r in valid_reviews:
             for c in r.get("concerns", []):
+                # Normalize: models sometimes return concerns as dicts
+                if isinstance(c, dict):
+                    c = c.get("description") or c.get("message") or str(c)
+                if not isinstance(c, str):
+                    c = str(c)
                 c_lower = c.lower()
                 if c_lower not in seen:
                     seen.add(c_lower)

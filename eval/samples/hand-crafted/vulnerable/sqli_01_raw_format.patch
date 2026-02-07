@@ -1,0 +1,17 @@
+diff --git a/src/db/users.py b/src/db/users.py
+index 0000000..1111111 100644
+--- a/src/db/users.py
++++ b/src/db/users.py
+@@ -1,5 +1,12 @@
+ import sqlite3
+ 
++def get_user(username):
++    conn = sqlite3.connect("app.db")
++    cursor = conn.cursor()
++    query = "SELECT * FROM users WHERE username = '%s'" % username
++    cursor.execute(query)
++    return cursor.fetchone()
++
+ def list_users():
+     conn = sqlite3.connect("app.db")
+     cursor = conn.cursor()

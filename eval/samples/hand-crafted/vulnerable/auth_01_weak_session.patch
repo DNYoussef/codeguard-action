@@ -1,0 +1,19 @@
+diff --git a/src/auth/session.py b/src/auth/session.py
+index 0000000..1111111 100644
+--- a/src/auth/session.py
++++ b/src/auth/session.py
+@@ -1,4 +1,14 @@
+ import hashlib
++import time
+ 
++def create_session(user_id):
++    """Create a session token using predictable values."""
++    token = hashlib.md5(str(user_id).encode() + str(int(time.time())).encode()).hexdigest()
++    return token
++
++def verify_password(stored_hash, password):
++    """Verify password using MD5 (insecure)."""
++    return hashlib.md5(password.encode()).hexdigest() == stored_hash
++
+ def logout(session_id):
+     pass

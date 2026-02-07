@@ -1,0 +1,12 @@
+diff --git a/src/db/products.py b/src/db/products.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/db/products.py
+@@ -0,0 +1,6 @@
++import sqlite3
++def find_product(name):
++    conn = sqlite3.connect("app.db")
++    cursor = conn.cursor()
++    cursor.execute("SELECT * FROM products WHERE name = '{}'".format(name))
++    return cursor.fetchone()

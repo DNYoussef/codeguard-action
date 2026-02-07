@@ -1,0 +1,9 @@
+diff --git a/src/config/parser.py b/src/config/parser.py
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/config/parser.py
+@@ -0,0 +1,3 @@
++import yaml
++def parse_config(config_str):
++    return yaml.load(config_str)
