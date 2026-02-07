@@ -76,6 +76,12 @@ class DiffAnalyzer:
         "pii": r"(email|phone|address|ssn|social.?security|date.?of.?birth)",
         "config": r"(config|setting|environment|env\.|\.env)",
         "infra": r"(terraform|kubernetes|docker|aws|azure|gcp|cloudformation)",
+        "command_injection": r"(subprocess|os\.system|os\.popen|child_process|shell\s*=\s*True|exec\(|eval\(|spawn)",
+        "deserialization": r"(pickle\.load|yaml\.load\(|yaml\.unsafe_load|marshal\.load|shelve\.open|jsonpickle|unserialize|readObject)",
+        "template_injection": r"(render_template_string|Template\(|Jinja2|mako\.template|format_map|\.safe_substitute|mark_safe|Markup\(|server.?side.?template)",
+        "path_traversal": r"(\.\./|\.\.\\|os\.path\.join|path\.join|send_file|sendFile|readFile|shutil\.(copy|move|copytree)|extractall|zipfile\.ZipFile|tarfile\.open)",
+        "weak_crypto": r"(md5|sha1[^0-9]|DES\b|RC4|ECB|random\.random|random\.seed|Math\.random|weak.?hash|insecure.?random)",
+        "xss": r"(<script|<img\s|onerror|onload|innerHTML|\.html\(|document\.write|mark_safe|Markup\(|\bResponse\s*\(.*<)",
     }
 
     # File patterns for preliminary risk tier estimation

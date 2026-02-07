@@ -86,9 +86,15 @@ class RiskClassifier:
         "payment": "critical",
         "crypto": "critical",
         "pii": "critical",
+        "command_injection": "critical",
+        "deserialization": "critical",
+        "xss": "high",
         "auth": "high",
         "security": "high",
         "database": "high",
+        "template_injection": "high",
+        "path_traversal": "high",
+        "weak_crypto": "high",
         "config": "medium",
         "infra": "medium",
     }
@@ -221,9 +227,19 @@ class RiskClassifier:
         """Emit a warning in GitHub Actions-friendly format."""
         print(f"::warning::{message}")
 
+    @staticmethod
+    def _downgrade_severity(severity: str) -> str:
+        """Downgrade severity by one level."""
+        return {"critical": "high", "high": "medium", "medium": "low", "low": "info"}.get(severity, severity)
+
     def classify(self, analysis: dict[str, Any]) -> dict[str, Any]:
         """
         Classify risk based on analysis results.
+
+        Uses three signal sources:
+          1. Zone-based keyword findings (deterministic)
+          2. Rubric rule findings (deterministic)
+          3. AI multi-model consensus (when available) to modulate severity
 
         Returns:
             Dict with: risk_tier, risk_drivers, findings, rationale
@@ -243,6 +259,44 @@ class RiskClassifier:
         # Apply rubric rules
         rubric_findings = self._apply_rubric(files)
         findings.extend(rubric_findings)
+
+        # --- AI Consensus Modulation ---
+        # When AI models reviewed the diff, use their consensus to adjust
+        # finding severity. This reduces FPs (AI approves benign keyword
+        # matches) and catches FNs (AI flags issues rules missed).
+        consensus_risk = analysis.get("consensus_risk", "")
+        agreement_score = analysis.get("agreement_score", 0.0)
+
+        if consensus_risk == "approve" and agreement_score >= 0.8:
+            # AI unanimously approved: downgrade zone-only findings by one
+            # level. Rubric findings are NOT downgraded (they are policy).
+            for f in findings:
+                if f.zone and not f.rule_id.startswith("RUBRIC"):
+                    f.severity = self._downgrade_severity(f.severity)
+
+        elif consensus_risk == "request_changes" and agreement_score >= 0.7:
+            # AI flagged issues: upgrade medium findings to high
+            for f in findings:
+                if f.severity == "medium":
+                    f.severity = "high"
+            # Inject AI concern findings (non-provable, so they can only
+            # trigger MERGE-WITH-CONDITIONS via DecisionEngine, never BLOCK)
+            mmr = analysis.get("multi_model_review", {})
+            ai_concerns = []
+            if mmr.get("consensus"):
+                ai_concerns = mmr["consensus"].get("combined_concerns", [])
+            elif ai_summary.get("concerns"):
+                ai_concerns = ai_summary["concerns"]
+            for idx, concern in enumerate(ai_concerns[:3]):
+                findings.append(Finding(
+                    id=f"AI-CONCERN-{idx}",
+                    severity="high",
+                    message=f"AI concern: {concern}",
+                    file="",
+                    line=None,
+                    rule_id="ai-consensus",
+                    zone=None,
+                ))
 
         # Calculate risk drivers
         risk_drivers = self._calculate_drivers(
