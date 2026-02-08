@@ -181,6 +181,9 @@ class BundleGenerator:
                 "base_branch": pr.base.ref if pr.base else "main",
                 "head_branch": pr.head.ref if pr.head else "unknown",
             },
+            # DEPRECATED: legacy fields retained for backward compatibility.
+            # Consumers should use 'items' + 'immutability_proof' instead.
+            # These fields will be removed in the next major version.
             "events": [self._event_to_dict(e) for e in self.events],
             "hash_chain": {
                 "algorithm": "sha256",

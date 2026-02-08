@@ -173,6 +173,15 @@ class PIIShieldClient:
                 f"Expected one of: {sorted(self._VALID_MODES)}"
             )
 
+        if self.mode == "local":
+            import warnings
+            warnings.warn(
+                "PII-Shield mode='local' is deprecated (identical to disabled). "
+                "Use enabled=False or mode='auto' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
     @staticmethod
     def _sha256(value: str) -> str:
         return "sha256:" + hashlib.sha256(value.encode("utf-8")).hexdigest()
