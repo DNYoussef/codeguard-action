@@ -223,9 +223,8 @@ class BundleGenerator:
         return bundle
 
     def _generate_bundle_id(self, repository: str, pr_number: int, commit_sha: str) -> str:
-        """Generate a spec-compliant UUID v4 bundle ID."""
-        _ = (repository, pr_number, commit_sha)
-        return str(uuid.uuid4())
+        """Generate a deterministic UUID v5 bundle ID from inputs."""
+        return str(uuid.uuid5(uuid.NAMESPACE_URL, f"{repository}/pull/{pr_number}/{commit_sha}"))
 
     def _event_to_dict(self, event: BundleEvent) -> dict:
         """Convert BundleEvent to dict."""
@@ -295,8 +294,10 @@ class BundleGenerator:
             })
             previous_hash = chain_hash
 
-        concatenated = "".join(link["chain_hash"] for link in hash_chain)
-        root_hash = "sha256:" + hashlib.sha256(concatenated.encode()).hexdigest()
+        h = hashlib.sha256()
+        for link in hash_chain:
+            h.update(link["chain_hash"].encode("utf-8"))
+        root_hash = "sha256:" + h.hexdigest()
         return {
             "hash_chain": hash_chain,
             "root_hash": root_hash,

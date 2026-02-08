@@ -421,10 +421,13 @@ class TestBundleIntegrity(unittest.TestCase):
         reparsed = json.loads(serialized)
         self.assertEqual(reparsed["bundle_id"], bundle["bundle_id"])
 
-    def test_bundle_id_is_uuid_v4(self):
+    def test_bundle_id_is_deterministic_uuid_v5(self):
         bundle = self._make_bundle()
         parsed = uuid.UUID(bundle["bundle_id"])
-        self.assertEqual(parsed.version, 4)
+        self.assertEqual(parsed.version, 5)
+        # Same inputs produce same ID
+        bundle2 = self._make_bundle()
+        self.assertEqual(bundle["bundle_id"], bundle2["bundle_id"])
 
     def test_signature_shape_matches_v020_spec(self):
         from cryptography.hazmat.primitives import serialization
