@@ -87,9 +87,9 @@ inputs:
     required: false
     default: '5'
   pii_shield_fail_closed:
-    description: 'Fail workflow if PII-Shield redaction errors occur'
+    description: 'Fail workflow if PII-Shield redaction errors occur (recommended: true for production)'
     required: false
-    default: 'false'
+    default: 'true'
   pii_shield_salt_fingerprint:
     description: 'Non-secret salt fingerprint for deterministic redaction attestations (sha256:XXXXXXXX)'
     required: false

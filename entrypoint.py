@@ -203,7 +203,7 @@ def main():
     pii_shield_endpoint = get_env("INPUT_PII_SHIELD_ENDPOINT")
     pii_shield_api_key = get_env("INPUT_PII_SHIELD_API_KEY") or get_env("PII_SHIELD_API_KEY")
     pii_shield_timeout = parse_float(get_env("INPUT_PII_SHIELD_TIMEOUT", "5"), 5.0)
-    pii_shield_fail_closed = parse_bool(get_env("INPUT_PII_SHIELD_FAIL_CLOSED", "false"))
+    pii_shield_fail_closed = parse_bool(get_env("INPUT_PII_SHIELD_FAIL_CLOSED", "true"))
     pii_shield_salt_fingerprint = get_env("INPUT_PII_SHIELD_SALT_FINGERPRINT", "sha256:00000000")
     pii_shield_sanitize_comments = parse_bool(get_env("INPUT_PII_SHIELD_SANITIZE_COMMENTS", "true"))
     pii_shield_sanitize_bundle = parse_bool(get_env("INPUT_PII_SHIELD_SANITIZE_BUNDLE", "true"))

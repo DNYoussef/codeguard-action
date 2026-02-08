@@ -20,16 +20,17 @@ When an auditor asks "How did this payment logic change get approved?", GitHub g
 
 ## Install (1 minute)
 
-**1. Add one secret** (pick any AI provider, or skip for rules-only mode):
+**1. Add secrets** (pick any AI provider, or skip for rules-only mode):
 
-| Provider | Secret name | Notes |
-|----------|-------------|-------|
-| OpenRouter | `OPENROUTER_API_KEY` | Recommended - single key, 100+ models |
-| Anthropic | `ANTHROPIC_API_KEY` | Direct Claude access |
-| OpenAI | `OPENAI_API_KEY` | Direct GPT access |
-| Ollama | *(none needed)* | Self-hosted, air-gapped |
+| Secret | Required | Notes |
+|--------|----------|-------|
+| `GITHUB_TOKEN` | Auto | Provided by GitHub Actions automatically |
+| `OPENROUTER_API_KEY` | Pick one | Recommended - single key, 100+ models |
+| `ANTHROPIC_API_KEY` | Pick one | Direct Claude access |
+| `OPENAI_API_KEY` | Pick one | Direct GPT access |
+| `PII_SHIELD_API_KEY` | Optional | Enable [PII-Shield](#pii-shield-integration) secret redaction |
 
-`GITHUB_TOKEN` is provided automatically by GitHub.
+Ollama requires no API key (self-hosted, air-gapped).
 
 **2. Create `.github/workflows/codeguard.yml`:**
 
@@ -45,10 +46,13 @@ jobs:
         id: guard
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}  # optional
-          risk_threshold: L3          # L0-L4, default L3
-          # rubric: soc2              # or: hipaa, pci-dss, default
-          # fail_on_high_risk: false  # true = exit 1 on L3+, false = warn only
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          risk_threshold: L3
+          # PII-Shield: strip secrets from AI prompts & evidence bundles
+          pii_shield_enabled: true
+          pii_shield_endpoint: ${{ vars.PII_SHIELD_ENDPOINT }}  # or omit for local mode
+        env:
+          PII_SHIELD_API_KEY: ${{ secrets.PII_SHIELD_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -56,14 +60,14 @@ jobs:
           path: ${{ steps.guard.outputs.bundle_path }}
 ```
 
-**3. Open a PR.** You'll see a Diff Postcard comment with risk tier + findings, and the evidence bundle in workflow artifacts.
+**3. Open a PR.** You'll see a Decision Card comment with risk tier + findings, and the evidence bundle in workflow artifacts.
 
 **Verify a bundle locally** (optional):
 ```bash
 pip install guardspine-verify && guardspine-verify .guardspine/bundles/*.json
 ```
 
-> **Troubleshooting**: Missing artifact? Ensure `bundle_dir` matches upload path. Hard fail on L4? Set `fail_on_high_risk: false` (default). No AI review? Provide at least one API key and set `ai_review: true` (default).
+> **Troubleshooting**: Missing artifact? Ensure `bundle_dir` matches upload path. Hard fail on L4? Set `fail_on_high_risk: false` (default). No AI review? Provide at least one API key and set `ai_review: true` (default). PII-Shield failing? Check endpoint connectivity or set `pii_shield_fail_closed: false` for advisory mode.
 
 ---
 
@@ -518,7 +522,8 @@ steps:
 
 ## Evidence Bundle Format
 
-Bundles follow the [guardspine-spec](https://github.com/DNYoussef/guardspine-spec) v0.2.0.
+Bundles follow the [guardspine-spec](https://github.com/DNYoussef/guardspine-spec) v0.2.0/v0.2.1.
+When PII-Shield is enabled, bundles include a `sanitization` attestation block (v0.2.1).
 For backward compatibility, legacy `events` + `hash_chain` fields are still emitted:
 
 ```json
@@ -658,33 +663,101 @@ fi
 
 CodeGuard integrates [PII-Shield](https://github.com/aragossa/pii-shield) to prevent secrets and personally identifiable information from leaking into AI prompts, PR comments, and evidence bundles.
 
-### Why
+### Why PII-Shield Matters
 
-AI code review sends diff content to language models. Without sanitization, API keys, tokens, database credentials, and other secrets embedded in diffs would be forwarded to third-party AI providers. PII-Shield catches these using Shannon entropy analysis and bigram frequency detection, then replaces them with deterministic HMAC tokens (`[HIDDEN:<id>]`) so the same secret always maps to the same token within a bundle.
+Every AI code review sends diff content to language models. That diff might contain:
 
-### Where
+- **API keys** hardcoded during development (`sk_live_...`, `AKIA...`)
+- **Database credentials** in migration files or config changes
+- **PII** in test fixtures, seed data, or log format strings
+- **Internal hostnames** and infrastructure details in config files
 
-PII-Shield operates at three points in the CodeGuard pipeline:
+Without sanitization, these secrets get forwarded to whichever AI provider you've configured -- OpenRouter, Anthropic, OpenAI, or any other third party. Even with Ollama (local models), secrets persist in evidence bundles that may be stored for years and shared with auditors.
 
-| Phase | What Gets Sanitized | File |
-|-------|---------------------|------|
-| **Pre-AI review** | Diff content sent to AI models | `src/pii_shield.py` |
-| **PR comment** | Diff Postcard content posted to GitHub | `entrypoint.py` |
-| **Bundle sealing** | Evidence bundle payload before hashing | `src/bundle_generator.py` |
+PII-Shield solves this by detecting high-entropy strings using **Shannon entropy analysis** combined with **bigram frequency detection** (real secrets have different character distribution than code identifiers). Detected secrets are replaced with deterministic HMAC tokens (`[HIDDEN:a1b2c3]`) so the same secret always maps to the same token within a bundle -- preserving referential integrity without exposing the underlying value.
 
-Raw diffs are preserved (never sanitized) for SHA-256 hash computation. Only the copies sent to AI models and external outputs are sanitized.
+### What PII-Shield Is
 
-### How
+[PII-Shield](https://github.com/aragossa/pii-shield) is a Go-based Kubernetes sidecar created by [Ilya Ploskovitov](https://github.com/aragossa). It provides:
 
-Enable via environment variables or action inputs:
+- **Entropy-based secret detection** -- no regex lists to maintain, catches novel secret formats
+- **Deterministic HMAC redaction** -- same input always produces same token (keyed by org-wide salt)
+- **Zero-config deployment** -- runs as a K8s sidecar or standalone HTTP service
+- **Sub-millisecond latency** -- Go implementation, no external dependencies
+
+### Installing PII-Shield
+
+**Option 1: Kubernetes sidecar (recommended for production)**
+
+```yaml
+# In your deployment manifest
+containers:
+  - name: pii-shield
+    image: ghcr.io/aragossa/pii-shield:latest
+    ports:
+      - containerPort: 8080
+    env:
+      - name: PII_SALT
+        valueFrom:
+          secretKeyRef:
+            name: pii-shield-config
+            key: salt
+```
+
+**Option 2: Docker standalone**
+
+```bash
+docker run -d -p 8080:8080 \
+  -e PII_SALT=your-org-wide-salt \
+  ghcr.io/aragossa/pii-shield:latest
+```
+
+**Option 3: Local mode (no server needed)**
+
+CodeGuard includes a built-in local entropy detector that runs entirely within the GitHub Action runner. No PII-Shield server required -- just enable it:
+
+```yaml
+pii_shield_enabled: true
+# No endpoint = local mode (entropy detection only, no HMAC)
+```
+
+Local mode uses Shannon entropy analysis to flag high-entropy strings but cannot produce deterministic HMAC tokens (since there's no shared salt). Use remote mode for cross-bundle token consistency.
+
+### Where PII-Shield Runs in the Pipeline
+
+```
+PR Diff (raw)
+  |
+  +-- SHA-256 hash (raw diff preserved for integrity proof)
+  |
+  +-- PII-Shield sanitize -----> Sanitized diff
+        |                            |
+        |                     AI model review (Claude/GPT/Gemini/Ollama)
+        |                            |
+        +-- PR Comment (sanitized) --+
+        |                            |
+        +-- Evidence Bundle (sanitized, then hash-chained)
+        |
+        +-- SARIF output (sanitized)
+```
+
+The raw diff is **never** modified. PII-Shield operates on copies sent to AI models and external outputs. The evidence bundle's hash chain covers the sanitized content, so verification remains valid.
+
+### Configuration
 
 ```yaml
 - uses: DNYoussef/codeguard-action@v1
   with:
     github_token: ${{ secrets.GITHUB_TOKEN }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    # PII-Shield configuration
     pii_shield_enabled: true
-    pii_shield_endpoint: https://pii-shield.example/sanitize  # or omit for local mode
+    pii_shield_endpoint: https://pii-shield.your-org.internal/sanitize
     pii_shield_salt_fingerprint: sha256:your-org-salt-fingerprint
+    pii_shield_fail_closed: true           # fail the action on sanitization error
+    pii_shield_sanitize_comments: true     # sanitize PR comment body
+    pii_shield_sanitize_bundle: true       # sanitize evidence bundle content
+    pii_shield_sanitize_sarif: true        # sanitize SARIF findings
   env:
     PII_SHIELD_API_KEY: ${{ secrets.PII_SHIELD_API_KEY }}
 ```
@@ -692,11 +765,48 @@ Enable via environment variables or action inputs:
 | Input | Default | Description |
 |-------|---------|-------------|
 | `pii_shield_enabled` | `false` | Enable PII-Shield sanitization |
+| `pii_shield_mode` | `auto` | Detection mode: `auto`, `local`, or `remote` |
 | `pii_shield_endpoint` | `""` | Remote PII-Shield API URL (empty = local mode) |
+| `pii_shield_api_key` | `""` | API key for remote PII-Shield endpoint |
+| `pii_shield_timeout` | `5` | HTTP timeout in seconds for remote calls |
 | `pii_shield_salt_fingerprint` | `sha256:00000000` | Non-secret fingerprint identifying the HMAC salt |
 | `pii_shield_fail_closed` | `true` | Fail the action if sanitization errors occur |
+| `pii_shield_sanitize_comments` | `true` | Sanitize PR comments before posting |
+| `pii_shield_sanitize_bundle` | `true` | Sanitize evidence bundles before writing |
+| `pii_shield_sanitize_sarif` | `true` | Sanitize SARIF output before upload |
 
-**Hash field preservation**: GuardSpine's own SHA-256 hashes (which are high-entropy by design) are automatically excluded from entropy detection to avoid false positives. Fields ending in `_hash`, `_digest`, `_checksum`, `root_hash`, `chain_hash`, etc. are extracted before sanitization and reinjected after.
+### Hash Field Preservation
+
+GuardSpine's own SHA-256 hashes are high-entropy by design -- the exact thing PII-Shield is built to detect. Without special handling, PII-Shield would flag every `content_hash`, `chain_hash`, and `root_hash` in a bundle as a secret.
+
+CodeGuard solves this by automatically extracting hash fields before sanitization and reinjecting them after. Fields matching these patterns are preserved:
+
+- `*_hash`, `*_digest`, `*_checksum`, `*_hmac`, `*_signature`
+- `root_hash`, `chain_hash`, `content_hash`, `previous_hash`, `diff_hash`
+- `signature_value`, `signed_hash`
+
+This means PII-Shield focuses on actual secrets in content fields while leaving the cryptographic structure intact.
+
+### The PII_SALT Must Be Org-Wide
+
+The HMAC salt used by PII-Shield **must be the same across all services** in your organization that produce or consume GuardSpine bundles. If codeguard-action, rlm-docsync, and adapter-webhook each use a different salt, the same secret will produce different `[HIDDEN:...]` tokens in each system -- breaking cross-bundle correlation and audit trail consistency.
+
+Store the salt in a shared secret manager (Vault, AWS Secrets Manager, K8s Secret) and reference it from all services.
+
+### Across the GuardSpine Ecosystem
+
+PII-Shield is integrated across the entire GuardSpine stack:
+
+| Component | What Gets Sanitized | Status |
+|-----------|---------------------|--------|
+| **codeguard-action** | PR diffs, comments, bundles, SARIF | Active |
+| **guardspine-verify** | Validates sanitization attestations | Active |
+| **rlm-docsync** | Documentation claims and evidence packs | Active |
+| **guardspine-local-council** | Prompts sent to local Ollama models | Active |
+| **guardspine-adapter-webhook** | Webhook payloads before bundle creation | Active |
+| **guardspine-spec** | Defines the sanitization attestation schema (v0.2.1) | Active |
+
+All components produce a standardized `sanitization` attestation block (GuardSpine spec v0.2.1) documenting the engine, method, redaction count, and token format. The verifier checks this attestation for consistency.
 
 ---
 
@@ -709,7 +819,10 @@ A: No. CodeGuard adds *evidence* to your existing review process. Humans still r
 A: The tier is based on file patterns and content analysis. You can adjust the threshold or create custom rubrics.
 
 **Q: Is my code sent anywhere?**
-A: Diffs are analyzed locally in the GitHub runner. AI features (optional) send truncated diffs to your configured AI provider.
+A: Diffs are analyzed locally in the GitHub runner. AI features (optional) send diffs to your configured AI provider. Enable [PII-Shield](#pii-shield-integration) to automatically strip secrets and PII before anything leaves the runner.
+
+**Q: Do I need PII-Shield?**
+A: If you use AI review (OpenRouter, Anthropic, OpenAI), PII-Shield prevents secrets in diffs from reaching third-party APIs. If you only use Ollama (local), PII-Shield still sanitizes evidence bundles that may be stored long-term or shared with auditors. It's optional but strongly recommended for production.
 
 **Q: How long should I keep bundles?**
 A: SOC 2 typically requires 1 year, HIPAA 6 years, PCI-DSS varies. Consult your compliance team.
