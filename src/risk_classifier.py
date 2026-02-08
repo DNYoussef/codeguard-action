@@ -106,6 +106,7 @@ class RiskClassifier:
         "template_injection": "high",
         "path_traversal": "high",
         "weak_crypto": "high",
+        "entropy_secret": "high",
         "config": "medium",
         "infra": "medium",
     }

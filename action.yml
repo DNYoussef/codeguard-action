@@ -68,6 +68,44 @@ inputs:
     description: 'Enable AI-powered code review (requires at least one API key)'
     required: false
     default: 'true'
+  pii_shield_enabled:
+    description: 'Enable PII-Shield preprocessing for AI review input'
+    required: false
+    default: 'false'
+  pii_shield_mode:
+    description: 'PII-Shield mode: auto, local, or remote'
+    required: false
+    default: 'auto'
+  pii_shield_endpoint:
+    description: 'Optional PII-Shield HTTP endpoint for remote redaction'
+    required: false
+  pii_shield_api_key:
+    description: 'API key for PII-Shield endpoint (optional)'
+    required: false
+  pii_shield_timeout:
+    description: 'PII-Shield HTTP timeout in seconds'
+    required: false
+    default: '5'
+  pii_shield_fail_closed:
+    description: 'Fail workflow if PII-Shield redaction errors occur'
+    required: false
+    default: 'false'
+  pii_shield_salt_fingerprint:
+    description: 'Non-secret salt fingerprint for deterministic redaction attestations (sha256:XXXXXXXX)'
+    required: false
+    default: 'sha256:00000000'
+  pii_shield_sanitize_comments:
+    description: 'Sanitize PR comments with PII-Shield before publishing'
+    required: false
+    default: 'true'
+  pii_shield_sanitize_bundle:
+    description: 'Sanitize evidence bundles with PII-Shield before writing artifacts'
+    required: false
+    default: 'true'
+  pii_shield_sanitize_sarif:
+    description: 'Sanitize SARIF output with PII-Shield before upload'
+    required: false
+    default: 'true'
   rubrics_dir:
     description: 'Directory containing rubric YAML files (relative paths allowed)'
     required: false

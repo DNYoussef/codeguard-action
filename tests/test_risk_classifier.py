@@ -178,6 +178,23 @@ class RiskClassifierTests(unittest.TestCase):
         self.assertTrue(len(zone_findings) > 0, "Expected weak_crypto finding")
         self.assertEqual(zone_findings[0]["severity"], "high")
 
+    def test_new_zones_entropy_secret(self):
+        """entropy_secret zone maps to high severity."""
+        analysis = {
+            "files": [{"path": "src/config.py", "hunks": []}],
+            "sensitive_zones": [
+                {"zone": "entropy_secret", "file": "src/config.py", "line": 12},
+            ],
+            "lines_added": 1,
+            "lines_removed": 0,
+        }
+        classifier = RiskClassifier(rubric="default")
+        result = classifier.classify(analysis)
+
+        zone_findings = [f for f in result["findings"] if f.get("zone") == "entropy_secret"]
+        self.assertTrue(len(zone_findings) > 0, "Expected entropy_secret finding")
+        self.assertEqual(zone_findings[0]["severity"], "high")
+
     # ------------------------------------------------------------------
     # AI consensus wiring tests (P0 fix)
     # ------------------------------------------------------------------

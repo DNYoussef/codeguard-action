@@ -254,7 +254,14 @@ class DiffAnalyzer:
             return bool(self.openai_key)
         return False
 
-    def analyze(self, diff_content: str, rubric: str = "default", tier_override: str = None, deliberate: bool = False) -> dict[str, Any]:
+    def analyze(
+        self,
+        diff_content: str,
+        rubric: str = "default",
+        tier_override: str = None,
+        deliberate: bool = False,
+        ai_diff_content: str | None = None,
+    ) -> dict[str, Any]:
         """
         Analyze a diff with tier-based multi-model review.
 
@@ -263,6 +270,15 @@ class DiffAnalyzer:
           2. Estimate preliminary risk tier from file patterns
           3. Run appropriate number of AI models based on tier
           4. Aggregate results with rubric scoring (L2+)
+
+        Args:
+            diff_content: Raw diff content used for deterministic parsing and hashing.
+            rubric: Rubric name.
+            tier_override: Optional risk tier override.
+            deliberate: Enable deliberation rounds for multi-model review.
+            ai_diff_content: Optional alternate diff content used only for AI prompts.
+                This enables privacy-preserving redaction for model calls while
+                preserving raw-diff provenance for audit hashes.
 
         Returns:
             Dict with keys: files_changed, lines_added, lines_removed,
@@ -350,14 +366,16 @@ class DiffAnalyzer:
         models_needed = self.TIER_MODEL_COUNT.get(effective_tier, 1)
         use_rubric = effective_tier in ("L2", "L3", "L4")
 
+        model_diff_content = ai_diff_content if ai_diff_content is not None else diff_content
+
         if models_needed > 0 and self.ai_enabled:
             if deliberate and models_needed >= 2:
                 multi_review = self._run_deliberation(
-                    diff_content, sensitive_zones, rubric, models_needed, use_rubric
+                    model_diff_content, sensitive_zones, rubric, models_needed, use_rubric
                 )
             else:
                 multi_review = self._run_multi_model_review(
-                    diff_content, sensitive_zones, rubric, models_needed, use_rubric
+                    model_diff_content, sensitive_zones, rubric, models_needed, use_rubric
                 )
             result["multi_model_review"] = multi_review
 

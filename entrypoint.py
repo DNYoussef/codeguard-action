@@ -21,6 +21,7 @@ from src.risk_classifier import RiskClassifier
 from src.bundle_generator import BundleGenerator
 from src.pr_commenter import PRCommenter
 from src.sarif_exporter import SARIFExporter
+from src.pii_shield import PIIShieldClient, PIIShieldError
 
 from code_guard.audit import Finding as AuditFinding
 from decision.engine import DecisionEngine, render_decision_card
@@ -34,6 +35,14 @@ def get_env(name: str, default: str = "") -> str:
 def parse_bool(value: str) -> bool:
     """Parse boolean from string."""
     return value.lower() in ("true", "1", "yes")
+
+
+def parse_float(value: str, default: float) -> float:
+    """Parse a float from string with fallback."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def resolve_path(raw: Optional[str], workspace: Path) -> Optional[Path]:
@@ -76,6 +85,88 @@ def resolve_existing_file(
     return None
 
 
+def _merge_sensitive_zones(
+    base_zones: list[dict[str, Any]],
+    extra_zones: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Merge sensitive zones without duplicate zone/file/line entries."""
+    merged = list(base_zones or [])
+    seen = {
+        (
+            z.get("zone"),
+            z.get("file"),
+            z.get("line"),
+            z.get("content_preview"),
+        )
+        for z in merged
+    }
+    for zone in extra_zones or []:
+        key = (
+            zone.get("zone"),
+            zone.get("file"),
+            zone.get("line"),
+            zone.get("content_preview"),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(zone)
+    return merged
+
+
+def _merge_redaction_counts(
+    base: dict[str, int],
+    extra: dict[str, int],
+) -> dict[str, int]:
+    merged = {str(k): int(v) for k, v in (base or {}).items()}
+    for key, value in (extra or {}).items():
+        merged[str(key)] = merged.get(str(key), 0) + int(value)
+    return merged
+
+
+def _init_sanitization_summary(
+    pii_result: Any,
+    salt_fingerprint: str,
+) -> dict[str, Any]:
+    details = pii_result.to_metadata().get("details", {})
+    return {
+        "engine_name": "pii-shield",
+        "engine_version": str(details.get("engine_version") or details.get("schema_version") or "unknown"),
+        "method": "provider_native" if pii_result.mode == "remote" else "deterministic_hmac",
+        "token_format": "[HIDDEN:<id>]",
+        "salt_fingerprint": salt_fingerprint,
+        "redaction_count": 0,
+        "redactions_by_type": {},
+        "input_hash": pii_result.input_hash,
+        "output_hash": pii_result.output_hash,
+        "applied_to": [],
+        "status": "none",
+    }
+
+
+def _record_sanitization_stage(
+    summary: dict[str, Any] | None,
+    stage: str,
+    result: Any,
+) -> dict[str, Any] | None:
+    if summary is None:
+        return None
+
+    if stage not in summary["applied_to"]:
+        summary["applied_to"].append(stage)
+
+    summary["redaction_count"] += int(max(result.redaction_count, 0))
+    summary["redactions_by_type"] = _merge_redaction_counts(
+        summary.get("redactions_by_type", {}),
+        result.redactions_by_type,
+    )
+    if result.changed:
+        summary["status"] = "sanitized"
+    elif summary["status"] == "none" and result.redaction_count > 0:
+        summary["status"] = "partial"
+    return summary
+
+
 def main():
     """Main entrypoint for the action."""
     # Parse inputs from environment (set by GitHub Actions)
@@ -105,6 +196,26 @@ def main():
 
     # Deliberation (multi-round cross-checking)
     deliberate = parse_bool(get_env("INPUT_DELIBERATE", "false"))
+
+    # PII-Shield integration (privacy-preserving AI review input)
+    pii_shield_enabled = parse_bool(get_env("INPUT_PII_SHIELD_ENABLED", "false"))
+    pii_shield_mode = get_env("INPUT_PII_SHIELD_MODE", "auto")
+    pii_shield_endpoint = get_env("INPUT_PII_SHIELD_ENDPOINT")
+    pii_shield_api_key = get_env("INPUT_PII_SHIELD_API_KEY") or get_env("PII_SHIELD_API_KEY")
+    pii_shield_timeout = parse_float(get_env("INPUT_PII_SHIELD_TIMEOUT", "5"), 5.0)
+    pii_shield_fail_closed = parse_bool(get_env("INPUT_PII_SHIELD_FAIL_CLOSED", "false"))
+    pii_shield_salt_fingerprint = get_env("INPUT_PII_SHIELD_SALT_FINGERPRINT", "sha256:00000000")
+    pii_shield_sanitize_comments = parse_bool(get_env("INPUT_PII_SHIELD_SANITIZE_COMMENTS", "true"))
+    pii_shield_sanitize_bundle = parse_bool(get_env("INPUT_PII_SHIELD_SANITIZE_BUNDLE", "true"))
+    pii_shield_sanitize_sarif = parse_bool(get_env("INPUT_PII_SHIELD_SANITIZE_SARIF", "true"))
+    pii_client = PIIShieldClient(
+        enabled=pii_shield_enabled,
+        mode=pii_shield_mode,
+        endpoint=pii_shield_endpoint,
+        api_key=pii_shield_api_key,
+        timeout_seconds=pii_shield_timeout,
+        fail_closed=pii_shield_fail_closed,
+    )
 
     # Auto-merge
     auto_merge = parse_bool(get_env("INPUT_AUTO_MERGE", "false"))
@@ -188,8 +299,38 @@ def main():
 
     # Get diff
     print("::group::Fetching PR diff")
-    diff_content = fetch_pr_diff(pr)
-    print(f"Diff size: {len(diff_content)} bytes")
+    raw_diff_content = fetch_pr_diff(pr)
+    diff_content_for_ai = raw_diff_content
+    pii_shield_result = None
+    sanitization_summary: dict[str, Any] | None = None
+    print(f"Diff size: {len(raw_diff_content)} bytes")
+
+    if pii_shield_enabled:
+        try:
+            pii_shield_result = pii_client.sanitize_diff(raw_diff_content)
+            diff_content_for_ai = pii_shield_result.sanitized_text
+            sanitization_summary = _init_sanitization_summary(
+                pii_shield_result,
+                pii_shield_salt_fingerprint,
+            )
+            sanitization_summary = _record_sanitization_stage(
+                sanitization_summary,
+                "ai_prompt",
+                pii_shield_result,
+            )
+            if pii_shield_result.changed:
+                print(
+                    f"::notice::PII-Shield redacted {pii_shield_result.redaction_count} "
+                    f"match(es) for AI review input"
+                )
+            else:
+                print("::notice::PII-Shield enabled; no redactable content detected")
+        except PIIShieldError as exc:
+            print(f"::error::PII-Shield failed in fail-closed mode: {exc}")
+            sys.exit(1)
+        except Exception as exc:
+            print(f"::error::Unexpected PII-Shield error: {exc}")
+            sys.exit(1)
     print("::endgroup::")
 
     # Analyze diff
@@ -204,9 +345,28 @@ def main():
         model_1=model_1,
         model_2=model_2,
         model_3=model_3,
-        ai_review=ai_review
+        ai_review=ai_review,
     )
-    analysis = analyzer.analyze(diff_content, rubric=rubric, deliberate=deliberate)
+    analysis = analyzer.analyze(
+        raw_diff_content,
+        rubric=rubric,
+        deliberate=deliberate,
+        ai_diff_content=diff_content_for_ai,
+    )
+    analysis["raw_diff_hash"] = analysis.get("diff_hash", "")
+    analysis["ai_diff_hash"] = (
+        f"sha256:{hashlib.sha256(diff_content_for_ai.encode('utf-8')).hexdigest()}"
+    )
+    if pii_shield_result:
+        analysis["pii_shield"] = pii_shield_result.to_metadata()
+        analysis["sensitive_zones"] = _merge_sensitive_zones(
+            analysis.get("sensitive_zones", []),
+            pii_shield_result.to_sensitive_zones(),
+        )
+        if sanitization_summary:
+            analysis["sanitization"] = dict(sanitization_summary)
+    else:
+        analysis["pii_shield"] = {"enabled": False}
     print(f"Files changed: {analysis['files_changed']}")
     print(f"Lines added: {analysis['lines_added']}")
     print(f"Lines removed: {analysis['lines_removed']}")
@@ -291,7 +451,33 @@ def main():
     if post_comment:
         print("::group::Posting PR comment")
         commenter = PRCommenter(gh, repo, pr)
-        commenter.post_decision_card(decision_card_md)
+        comment_body = decision_card_md
+        if pii_shield_enabled and pii_shield_sanitize_comments:
+            try:
+                comment_result = pii_client.sanitize_text(
+                    decision_card_md,
+                    input_format="markdown",
+                    include_findings=False,
+                    purpose="pr_comment",
+                )
+                sanitization_summary = _record_sanitization_stage(
+                    sanitization_summary,
+                    "pr_comment",
+                    comment_result,
+                )
+                comment_body = comment_result.sanitized_text
+                if comment_result.changed:
+                    print(
+                        f"::notice::PII-Shield redacted {comment_result.redaction_count} "
+                        f"match(es) in PR comment body"
+                    )
+            except PIIShieldError as exc:
+                print(f"::error::PII-Shield failed while sanitizing PR comment: {exc}")
+                sys.exit(1)
+            except Exception as exc:
+                print(f"::error::Unexpected PII-Shield comment sanitization error: {exc}")
+                sys.exit(1)
+        commenter.post_decision_card(comment_body)
         print("Decision Card posted")
         print("::endgroup::")
 
@@ -300,21 +486,52 @@ def main():
     if generate_bundle:
         print("::group::Generating evidence bundle")
         generator = BundleGenerator()
+        if sanitization_summary:
+            analysis["sanitization"] = dict(sanitization_summary)
         bundle = generator.create_bundle(
             pr=pr,
-            diff_content=diff_content,
+            diff_content=raw_diff_content,
             analysis=analysis,
             risk_result=risk_result,
             repository=github_repository,
             commit_sha=github_sha
         )
 
+        if pii_shield_enabled and pii_shield_sanitize_bundle:
+            try:
+                bundle, bundle_result = pii_client.sanitize_json_document(
+                    bundle,
+                    purpose="evidence_bundle",
+                )
+                sanitization_summary = _record_sanitization_stage(
+                    sanitization_summary,
+                    "evidence_bundle",
+                    bundle_result,
+                )
+                if bundle_result.changed:
+                    print(
+                        f"::notice::PII-Shield redacted {bundle_result.redaction_count} "
+                        f"match(es) in evidence bundle"
+                    )
+            except PIIShieldError as exc:
+                print(f"::error::PII-Shield failed while sanitizing evidence bundle: {exc}")
+                sys.exit(1)
+            except Exception as exc:
+                print(f"::error::Unexpected PII-Shield bundle sanitization error: {exc}")
+                sys.exit(1)
+
+        if sanitization_summary:
+            bundle["sanitization"] = dict(sanitization_summary)
+            if isinstance(bundle.get("analysis_snapshot"), dict):
+                bundle["analysis_snapshot"]["sanitization"] = dict(sanitization_summary)
+
         # Save bundle
         bundle_dir.mkdir(parents=True, exist_ok=True)
         bundle_path = bundle_dir / f"bundle-pr{pr_number}-{github_sha[:7]}.json"
 
-        with open(bundle_path, "w") as f:
-            json.dump(bundle, f, indent=2, default=str)
+        with open(bundle_path, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(bundle, f, indent=2, sort_keys=True, ensure_ascii=False, default=str)
+            f.write("\n")
 
         # Output path relative to workspace so upload-artifact (which runs
         # outside the Docker container) can resolve it against the host
@@ -337,10 +554,33 @@ def main():
         print("::group::Generating SARIF report")
         exporter = SARIFExporter()
         sarif = exporter.export(findings, github_repository, github_sha)
+        if pii_shield_enabled and pii_shield_sanitize_sarif:
+            try:
+                sarif, sarif_result = pii_client.sanitize_json_document(
+                    sarif,
+                    purpose="sarif",
+                )
+                sanitization_summary = _record_sanitization_stage(
+                    sanitization_summary,
+                    "sarif",
+                    sarif_result,
+                )
+                if sarif_result.changed:
+                    print(
+                        f"::notice::PII-Shield redacted {sarif_result.redaction_count} "
+                        f"match(es) in SARIF output"
+                    )
+            except PIIShieldError as exc:
+                print(f"::error::PII-Shield failed while sanitizing SARIF output: {exc}")
+                sys.exit(1)
+            except Exception as exc:
+                print(f"::error::Unexpected PII-Shield SARIF sanitization error: {exc}")
+                sys.exit(1)
         sarif_path = Path(get_env("GITHUB_WORKSPACE", ".")) / "guardspine-results.sarif"
 
-        with open(sarif_path, "w") as f:
-            json.dump(sarif, f, indent=2)
+        with open(sarif_path, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(sarif, f, indent=2, ensure_ascii=False)
+            f.write("\n")
 
         print(f"SARIF saved: {sarif_path}")
         print("::endgroup::")

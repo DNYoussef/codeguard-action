@@ -6,7 +6,6 @@ retained for backward compatibility with existing consumers/tests.
 """
 
 import hashlib
-import json
 import uuid
 from base64 import b64encode
 from datetime import datetime, timezone
@@ -14,6 +13,11 @@ from typing import Any, Optional
 from dataclasses import dataclass, field
 
 from github.PullRequest import PullRequest
+
+try:
+    from .canonical_json import canonical_json_dumps
+except ImportError:  # pragma: no cover - fallback for direct module imports in tests
+    from canonical_json import canonical_json_dumps
 
 
 @dataclass
@@ -27,14 +31,16 @@ class BundleEvent:
 
     def compute_hash(self, previous_hash: str = "") -> str:
         """Compute hash for this event including previous hash."""
-        content = json.dumps({
-            "event_type": self.event_type,
-            "timestamp": self.timestamp,
-            "actor": self.actor,
-            "data": self.data,
-            "previous_hash": previous_hash
-        }, sort_keys=True, separators=(',', ':'))
-        self.hash = hashlib.sha256(content.encode()).hexdigest()
+        content = canonical_json_dumps(
+            {
+                "event_type": self.event_type,
+                "timestamp": self.timestamp,
+                "actor": self.actor,
+                "data": self.data,
+                "previous_hash": previous_hash,
+            }
+        )
+        self.hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         return self.hash
 
 
@@ -107,6 +113,11 @@ class BundleGenerator:
         previous_hash = pr_event.compute_hash(previous_hash)
         self.events.append(pr_event)
 
+        raw_diff_hash = analysis.get("raw_diff_hash", analysis.get("diff_hash", ""))
+        analysis_diff_hash = analysis.get("ai_diff_hash", analysis.get("diff_hash", ""))
+        pii_shield = analysis.get("pii_shield", {"enabled": False})
+        sanitization = analysis.get("sanitization")
+
         # Event 2: Analysis Completed
         analysis_event = BundleEvent(
             event_type="analysis_completed",
@@ -118,6 +129,10 @@ class BundleGenerator:
                 "lines_removed": analysis.get("lines_removed", 0),
                 "sensitive_zones_count": len(analysis.get("sensitive_zones", [])),
                 "diff_hash": analysis.get("diff_hash", ""),
+                "raw_diff_hash": raw_diff_hash,
+                "analysis_diff_hash": analysis_diff_hash,
+                "pii_shield": pii_shield,
+                "sanitization": sanitization,
             }
         )
         previous_hash = analysis_event.compute_hash(previous_hash)
@@ -183,12 +198,17 @@ class BundleGenerator:
                 "rationale": risk_result.get("rationale", ""),
                 "requires_approval": risk_result.get("risk_tier", "L2") in ("L3", "L4"),
             },
+            "sanitization": sanitization,
             "analysis_snapshot": {
                 "files_changed": analysis.get("files_changed", 0),
                 "lines_added": analysis.get("lines_added", 0),
                 "lines_removed": analysis.get("lines_removed", 0),
                 "sensitive_zones": self._summarize_zones(analysis.get("sensitive_zones", [])),
                 "ai_summary": analysis.get("ai_summary", {}),
+                "raw_diff_hash": raw_diff_hash,
+                "analysis_diff_hash": analysis_diff_hash,
+                "pii_shield": pii_shield,
+                "sanitization": sanitization,
             },
             "signatures": [],
         }
@@ -231,7 +251,7 @@ class BundleGenerator:
 
         # Convert sets to lists for JSON serialization
         for zone_type in summary:
-            summary[zone_type]["files"] = list(summary[zone_type]["files"])
+            summary[zone_type]["files"] = sorted(summary[zone_type]["files"])
 
         return summary
 
@@ -245,8 +265,8 @@ class BundleGenerator:
                 "actor": event.actor,
                 "data": event.data,
             }
-            serialized = json.dumps(content, sort_keys=True, separators=(",", ":"))
-            content_hash = "sha256:" + hashlib.sha256(serialized.encode()).hexdigest()
+            serialized = canonical_json_dumps(content)
+            content_hash = "sha256:" + hashlib.sha256(serialized.encode("utf-8")).hexdigest()
             items.append({
                 "item_id": f"event-{idx:04d}",
                 "sequence": idx,
@@ -302,8 +322,8 @@ class BundleGenerator:
 
         # Sign the full bundle payload excluding signatures.
         signing_payload = {k: v for k, v in bundle.items() if k != "signatures"}
-        canonical = json.dumps(signing_payload, sort_keys=True, separators=(",", ":"))
-        canonical_bytes = canonical.encode()
+        canonical = canonical_json_dumps(signing_payload)
+        canonical_bytes = canonical.encode("utf-8")
 
         try:
             from cryptography.hazmat.primitives import hashes, serialization
@@ -392,14 +412,16 @@ def verify_bundle_chain(bundle: dict) -> tuple[bool, str]:
     previous_hash = ""
     for i, event in enumerate(events):
         # Recompute hash
-        content = json.dumps({
-            "event_type": event["event_type"],
-            "timestamp": event["timestamp"],
-            "actor": event["actor"],
-            "data": event["data"],
-            "previous_hash": previous_hash
-        }, sort_keys=True, separators=(',', ':'))
-        computed_hash = hashlib.sha256(content.encode()).hexdigest()
+        content = canonical_json_dumps(
+            {
+                "event_type": event["event_type"],
+                "timestamp": event["timestamp"],
+                "actor": event["actor"],
+                "data": event["data"],
+                "previous_hash": previous_hash,
+            }
+        )
+        computed_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
 
         if computed_hash != event["hash"]:
             return False, f"Hash mismatch at event {i}: expected {event['hash']}, got {computed_hash}"
