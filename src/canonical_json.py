@@ -4,28 +4,20 @@ Canonical JSON helpers for deterministic hashing/signing.
 This module normalizes values to a stable JSON representation:
   - dict keys are sorted lexicographically
   - sets/frozensets become sorted lists
-  - strings are Unicode-normalized (NFC)
   - non-finite floats are rejected
+
+IMPORTANT: No Unicode normalization (NFC/NFD) is applied.
+Strings are passed through as-is to match kernel canonical behavior
+(guardspine-kernel/src/canonical.ts).
 """
 
 from __future__ import annotations
 
 import json
 import math
-import unicodedata
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, date
 from typing import Any
-
-
-def _normalize_string(value: str) -> str:
-    return unicodedata.normalize("NFC", value)
-
-
-def _normalize_key(value: Any) -> str:
-    if isinstance(value, str):
-        return _normalize_string(value)
-    return str(value)
 
 
 def canonicalize_for_json(value: Any) -> Any:
@@ -39,7 +31,7 @@ def canonicalize_for_json(value: Any) -> Any:
         return value
 
     if isinstance(value, str):
-        return _normalize_string(value)
+        return value
 
     if isinstance(value, (bytes, bytearray)):
         return value.decode("utf-8", errors="strict")
@@ -52,8 +44,8 @@ def canonicalize_for_json(value: Any) -> Any:
 
     if isinstance(value, dict):
         normalized: dict[str, Any] = {}
-        for key in sorted(value.keys(), key=lambda k: _normalize_key(k)):
-            normalized_key = _normalize_key(key)
+        for key in sorted(value.keys(), key=lambda k: str(k)):
+            normalized_key = str(key) if not isinstance(key, str) else key
             if normalized_key in normalized:
                 raise ValueError(f"Canonical key collision detected for key {normalized_key!r}")
             normalized[normalized_key] = canonicalize_for_json(value[key])
@@ -93,4 +85,3 @@ def canonical_json_dumps(value: Any) -> str:
 def canonical_json_bytes(value: Any) -> bytes:
     """Serialize canonical JSON as UTF-8 bytes."""
     return canonical_json_dumps(value).encode("utf-8")
-

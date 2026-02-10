@@ -20,22 +20,48 @@ from urllib.parse import urlparse
 import requests
 
 
+_LOOPBACK_HOSTNAMES = frozenset({
+    "localhost", "localhost.localdomain", "ip6-localhost", "ip6-loopback",
+})
+
+
 def _validate_endpoint(url: str) -> None:
-    """Block SSRF-prone endpoints (cloud metadata, private IPs)."""
+    """Block SSRF-prone endpoints (cloud metadata, private IPs, loopback hostnames)."""
+    import os
+    import socket
+
+    if os.environ.get("PII_SHIELD_ALLOW_PRIVATE", "").lower() in ("1", "true", "yes"):
+        return
+
     parsed = urlparse(url)
     if parsed.scheme not in ("https", "http"):
         raise ValueError(f"PII-Shield endpoint must use http(s): {url}")
     host = parsed.hostname or ""
     if host in ("169.254.169.254", "metadata.google.internal"):
         raise ValueError(f"PII-Shield endpoint cannot target cloud metadata: {url}")
+
+    # Block known loopback hostnames
+    if host.lower() in _LOOPBACK_HOSTNAMES:
+        raise ValueError(f"PII-Shield endpoint cannot target localhost: {url}")
+
     try:
         ip = ipaddress.ip_address(host)
-        if ip.is_private:
+        if ip.is_private or ip.is_loopback:
             raise ValueError(f"PII-Shield endpoint cannot target private IP: {url}")
     except ValueError as exc:
         if "cannot target" in str(exc):
             raise
-        # not an IP literal -- hostname is fine
+        # Not an IP literal -- resolve hostname and check resolved address
+        try:
+            resolved = socket.getaddrinfo(host, None, socket.AF_UNSPEC)
+            for _family, _type, _proto, _canonname, sockaddr in resolved:
+                resolved_ip = ipaddress.ip_address(sockaddr[0])
+                if resolved_ip.is_private or resolved_ip.is_loopback:
+                    raise ValueError(
+                        f"PII-Shield endpoint hostname resolves to private IP: {url}"
+                    )
+        except socket.gaierror:
+            pass  # DNS failure -- request will fail naturally at call time
 
 
 _HASH_FIELD_SUFFIXES = ("_hash",)

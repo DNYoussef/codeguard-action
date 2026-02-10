@@ -121,6 +121,10 @@ inputs:
     description: 'Decision engine policy (standard, strict, advisory, or path to custom YAML)'
     required: false
     default: 'standard'
+  deliberate:
+    description: 'Enable deliberation (multi-round cross-checking between AI models)'
+    required: false
+    default: 'false'
   auto_merge:
     description: 'Auto-merge clean PRs (decision=merge, tier L0-L3). Requires contents:write permission.'
     required: false

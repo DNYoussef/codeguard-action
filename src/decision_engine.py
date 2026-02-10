@@ -71,7 +71,7 @@ def load_policy(name_or_path: str = "standard") -> dict[str, Any]:
     if not path.exists():
         return _DEFAULT_POLICY
     with open(path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        return yaml.safe_load(f) or _DEFAULT_POLICY
 
 
 # ---------------------------------------------------------------------------
