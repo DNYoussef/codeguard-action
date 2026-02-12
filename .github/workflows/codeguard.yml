@@ -12,6 +12,7 @@ jobs:
         id: codeguard
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
           risk_threshold: L3
       - uses: actions/upload-artifact@v4
         if: always()
