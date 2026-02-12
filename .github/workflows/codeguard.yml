@@ -1,0 +1,20 @@
+name: CodeGuard
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DNYoussef/codeguard-action@v1
+        id: codeguard
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          risk_threshold: L3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-bundle
+          path: ${{ steps.codeguard.outputs.bundle_path }}
