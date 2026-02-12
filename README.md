@@ -37,6 +37,11 @@ Ollama requires no API key (self-hosted, air-gapped).
 ```yaml
 name: CodeGuard
 on: [pull_request]
+
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -57,7 +62,7 @@ jobs:
         if: always()
         with:
           name: evidence-bundle
-          path: ${{ steps.guard.outputs.bundle_path }}
+          path: .guardspine/bundles/
 ```
 
 **3. Open a PR.** You'll see a Decision Card comment with risk tier + findings, and the evidence bundle in workflow artifacts.
@@ -605,6 +610,10 @@ on:
   pull_request:
     types: [opened, synchronize]
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   analyze:
     runs-on: ubuntu-latest
@@ -619,7 +628,7 @@ jobs:
         if: always()
         with:
           name: evidence-bundle
-          path: ${{ steps.codeguard.outputs.bundle_path }}
+          path: .guardspine/bundles/
 EOF
 
 # Step 3: Commit

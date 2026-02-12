@@ -490,8 +490,12 @@ def main():
                 print(f"::warning::PII-Shield error in comment sanitization: {exc}")
                 if pii_shield_fail_closed:
                     sys.exit(1)
-        commenter.post_decision_card(comment_body)
-        print("Decision Card posted")
+        try:
+            commenter.post_decision_card(comment_body)
+            print("Decision Card posted")
+        except Exception as exc:
+            print(f"::warning::Failed to post PR comment (check GITHUB_TOKEN permissions): {exc}")
+            print("::warning::Ensure workflow has 'permissions: pull-requests: write'")
         print("::endgroup::")
 
     # Generate evidence bundle
