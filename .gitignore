@@ -10,8 +10,6 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-!lib/pii-shield.wasm
 lib64/
 parts/
 sdist/

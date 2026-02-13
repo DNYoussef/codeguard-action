@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy action code
 COPY src/ ./src/
-COPY lib/ ./lib/
+COPY lib/pii-shield.wasm ./lib/pii-shield.wasm
 COPY rubrics/ ./rubrics/
 COPY entrypoint.py .
 # Decision engine profiles are inside src/decision_profiles/ (copied with src/)
