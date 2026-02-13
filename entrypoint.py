@@ -723,14 +723,42 @@ def fetch_pr_diff(pr: PullRequest) -> str:
         or os.environ.get("GITHUB_TOKEN")
     )
     headers = {
-        "Accept": "application/vnd.github.v3.diff",
+        "Accept": "application/vnd.github.diff",
     }
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     response = requests.get(diff_url, headers=headers, timeout=30)
+    if response.status_code == 406:
+        # Large diffs may not be available via API; fall back to per-file patches.
+        print("::warning::Diff too large for single API response, fetching per-file patches")
+        return _fetch_pr_diff_paginated(pr, token)
     response.raise_for_status()
     return response.text
+
+
+def _fetch_pr_diff_paginated(pr, token: str | None) -> str:
+    """Fetch diff by iterating over PR files when the full diff is too large."""
+    import requests
+
+    parts: list[str] = []
+    page = 1
+    while True:
+        url = f"{pr.url}/files?per_page=100&page={page}"
+        headers = {"Accept": "application/vnd.github+json"}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        resp = requests.get(url, headers=headers, timeout=30)
+        resp.raise_for_status()
+        files = resp.json()
+        if not files:
+            break
+        for f in files:
+            patch = f.get("patch", "")
+            if patch:
+                parts.append(f"diff --git a/{f['filename']} b/{f['filename']}\n{patch}")
+        page += 1
+    return "\n".join(parts)
 
 
 def set_output(name: str, value: str):
