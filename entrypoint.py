@@ -714,7 +714,10 @@ def fetch_pr_diff(pr: PullRequest) -> str:
 
     import requests
 
-    diff_url = pr.diff_url
+    # Use the API URL (pr.url) instead of pr.diff_url (web URL).
+    # The web URL (github.com/...pull/N.diff) returns 404 on private repos
+    # even with a Bearer token. The API URL works for both public and private.
+    diff_url = pr.url
     token = (
         os.environ.get("INPUT_GITHUB_TOKEN")
         or os.environ.get("GITHUB_TOKEN")
