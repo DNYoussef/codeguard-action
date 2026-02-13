@@ -401,72 +401,49 @@ class PIIShieldClient:
         include_findings: bool,
         purpose: str | None,
     ) -> PIIShieldResult:
-        headers = {"Content-Type": "application/json"}
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        # WASM Integration: Use local WASM client instead of HTTP
+        # WASM Integration: Use local WASM client instead of HTTP
+        try:
+            from .adapters.pii_wasm_client import PIIWasmClient
+        except ImportError:
+            # Fallback for when running without package context (e.g. local tests)
+            from adapters.pii_wasm_client import PIIWasmClient
+        
+        client = PIIWasmClient()
+        # Note: WASM client currently only supports text redaction (ScanAndRedact)
+        # It does not yet support structured findings or config override via arguments in the same way 
+        # as the HTTP API (payload).
+        # However, for "The Leak Test", we primarily need redaction.
+        
+        # TODO: Pass configuration (safe_regex_list, etc) to WASM if not already handled by ENV vars.
+        # The current WASM implementation relies on ENV vars read by the Go process.
+        
+        try:
+            sanitized = client.redact(text)
+        except Exception as exc:
+             raise RuntimeError(f"WASM PII-Shield failed: {exc}") from exc
 
-        payload = {
-            "text": text,
-            "input_format": input_format,
-            "deterministic": True,
-            "preserve_line_numbers": True,
-            "include_findings": include_findings,
-            "salt_fingerprint": self.salt_fingerprint,
-        }
-        if self.safe_regex_list:
-            try:
-                parsed = json.loads(self.safe_regex_list)
-                if isinstance(parsed, list):
-                    payload["safe_regex_list"] = parsed
-            except (json.JSONDecodeError, TypeError):
-                pass  # Invalid JSON -- skip, PII-Shield will use its own defaults
-        if purpose:
-            payload["purpose"] = purpose
-
-        response = requests.post(
-            self.endpoint,
-            json=payload,
-            headers=headers,
-            timeout=self.timeout_seconds,
-        )
-        response.raise_for_status()
-        body = response.json()
-
-        sanitized = (
-            body.get("sanitized_text")
-            or body.get("redacted_text")
-            or body.get("text")
-            or body.get("output")
-        )
-        if not isinstance(sanitized, str):
-            raise ValueError("Remote PII-Shield response did not include sanitized text")
-
-        redactions_by_type = self._extract_redactions_by_type(body)
-        redaction_count = body.get("redaction_count")
-        if not isinstance(redaction_count, int):
-            redaction_count = sum(redactions_by_type.values())
-            if redaction_count == 0 and isinstance(body.get("redactions"), list):
-                redaction_count = len(body["redactions"])
-        redaction_count = max(0, redaction_count)
-
-        signals = self._extract_signals(body, redactions_by_type)
-
+        # Mocking the rich response structure of the HTTP API for compatibility
+        # iterating over the redacted string to check if it changed
+        changed = (sanitized != text)
+        redaction_count = 0
+        if changed:
+            # Simple heuristic since WASM doesn't return count yet
+            redaction_count = sanitized.count("[HIDDEN")
+            
         return PIIShieldResult(
             sanitized_text=sanitized,
-            changed=(sanitized != text),
+            changed=changed,
             redaction_count=redaction_count,
-            redactions_by_type=redactions_by_type,
-            mode="remote",
-            provider=body.get("provider", "pii-shield-remote"),
+            redactions_by_type={}, # WASM simple output doesn't provide this yet
+            mode="wasm-local",
+            provider="pii-shield-wasm",
             input_hash=self._sha256(text),
             output_hash=self._sha256(sanitized),
-            signals=signals,
+            signals=[], # WASM simple output doesn't provide signals yet
             metadata={
-                "status_code": response.status_code,
-                "schema_version": body.get("schema_version"),
-                "engine_version": body.get("engine_version") or body.get("version"),
-                "model": body.get("model"),
                 "input_format": input_format,
+                "engine": "wasm",
             },
         )
 
