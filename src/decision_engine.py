@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Decision Engine - findings in, one decision out.
 

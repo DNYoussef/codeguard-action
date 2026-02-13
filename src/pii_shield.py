@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 PII-Shield integration spike.
 
@@ -7,7 +8,6 @@ Supports:
   - fail-open/fail-closed behavior
 """
 
-from __future__ import annotations
 
 import hashlib
 import ipaddress
@@ -401,7 +401,93 @@ class PIIShieldClient:
         include_findings: bool,
         purpose: str | None,
     ) -> PIIShieldResult:
-        # WASM Integration: Use local WASM client instead of HTTP
+        if self.endpoint and self.endpoint.lower().startswith("http"):
+            return self._sanitize_via_http(text, input_format, include_findings, purpose)
+        return self._sanitize_via_wasm(text, input_format, include_findings, purpose)
+
+    def _sanitize_via_http(
+        self,
+        text: str,
+        input_format: str,
+        include_findings: bool,
+        purpose: str | None,
+    ) -> PIIShieldResult:
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        payload = {
+            "text": text,
+            "input_format": input_format,
+            "deterministic": True,
+            "preserve_line_numbers": True,
+            "include_findings": include_findings,
+            "salt_fingerprint": self.salt_fingerprint,
+        }
+        if self.safe_regex_list:
+            try:
+                parsed = json.loads(self.safe_regex_list)
+                if isinstance(parsed, list):
+                    payload["safe_regex_list"] = parsed
+            except (json.JSONDecodeError, TypeError):
+                pass  # Invalid JSON -- skip, PII-Shield will use its own defaults
+        if purpose:
+            payload["purpose"] = purpose
+
+        response = requests.post(
+            self.endpoint,
+            json=payload,
+            headers=headers,
+            timeout=self.timeout_seconds,
+        )
+        response.raise_for_status()
+        body = response.json()
+
+        sanitized = (
+            body.get("sanitized_text")
+            or body.get("redacted_text")
+            or body.get("text")
+            or body.get("output")
+        )
+        if not isinstance(sanitized, str):
+            raise ValueError("Remote PII-Shield response did not include sanitized text")
+
+        redactions_by_type = self._extract_redactions_by_type(body)
+        redaction_count = body.get("redaction_count")
+        if not isinstance(redaction_count, int):
+            redaction_count = sum(redactions_by_type.values())
+            if redaction_count == 0 and isinstance(body.get("redactions"), list):
+                redaction_count = len(body["redactions"])
+        redaction_count = max(0, redaction_count)
+
+        signals = self._extract_signals(body, redactions_by_type)
+
+        return PIIShieldResult(
+            sanitized_text=sanitized,
+            changed=(sanitized != text),
+            redaction_count=redaction_count,
+            redactions_by_type=redactions_by_type,
+            mode="remote",
+            provider=body.get("provider", "pii-shield-remote"),
+            input_hash=self._sha256(text),
+            output_hash=self._sha256(sanitized),
+            signals=signals,
+            metadata={
+                "status_code": response.status_code,
+                "schema_version": body.get("schema_version"),
+                "engine_version": body.get("engine_version") or body.get("version"),
+                "model": body.get("model"),
+                "input_format": input_format,
+            },
+        )
+
+    def _sanitize_via_wasm(
+        self,
+        text: str,
+        input_format: str,
+        include_findings: bool,
+        purpose: str | None,
+    ) -> PIIShieldResult:
         # WASM Integration: Use local WASM client instead of HTTP
         try:
             from .adapters.pii_wasm_client import PIIWasmClient

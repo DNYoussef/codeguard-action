@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Diff Analyzer - Parses and analyzes PR diffs with tier-based multi-model review.
 

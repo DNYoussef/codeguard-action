@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Tests for canonical JSON normalization used by bundle hashing/signing.
 """

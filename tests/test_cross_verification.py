@@ -1,3 +1,4 @@
+from __future__ import annotations
 """
 Cross-verification tests: bundles produced by codeguard-action's bundle_generator
 must pass guardspine-kernel-py's verifier.

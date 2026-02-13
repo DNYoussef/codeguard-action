@@ -1,3 +1,4 @@
+from __future__ import annotations
 """Tests for AI diff routing behavior in DiffAnalyzer."""
 
 import sys
