@@ -5,8 +5,6 @@ GuardSpine CodeGuard GitHub Action Entrypoint
 Analyzes PR diffs, evaluates risk, and generates evidence bundles.
 """
 
-from __future__ import annotations
-
 import json
 import os
 import sys

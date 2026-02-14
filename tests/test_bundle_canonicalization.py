@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 Determinism tests for bundle canonicalization and hashing.
 """

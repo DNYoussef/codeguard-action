@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Tests for provider-first PII-Shield integration behavior."""
 
 import sys

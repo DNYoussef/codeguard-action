@@ -1,4 +1,3 @@
-from __future__ import annotations
 """Integration tests for entrypoint PII-Shield plumbing."""
 
 import hashlib

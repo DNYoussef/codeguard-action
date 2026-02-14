@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 Critical/high regression tests that must pass before release.
 

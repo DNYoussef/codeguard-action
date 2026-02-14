@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 SARIF Exporter - Exports findings in SARIF format for GitHub Security tab.
 

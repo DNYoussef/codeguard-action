@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 PR Commenter - Posts risk summaries as PR comments.
 """

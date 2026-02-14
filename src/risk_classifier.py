@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 Risk Classifier - Assigns risk tiers (L0-L4) based on analysis.
 """
@@ -605,7 +604,14 @@ class RiskClassifier:
             if key in seen:
                 continue
             seen.add(key)
-            severity = self.zone_severity.get(zone["zone"], "medium")
+            
+            # Downgrade severity for test/fixture files
+            file_path = zone.get("file", "")
+            is_test = any(re.search(p, file_path, re.IGNORECASE) for p in self.file_patterns["L1"])
+            
+            base_severity = self.zone_severity.get(zone["zone"], "medium")
+            severity = "info" if is_test else base_severity
+
             findings.append(Finding(
                 id=f"ZONE-{zone['zone'].upper()}",
                 severity=severity,
@@ -658,9 +664,13 @@ class RiskClassifier:
                     self._warn(f"Rubric rule {rule.get('id')} skipped: {exc}")
                     continue
 
+                is_test = any(re.search(p, path, re.IGNORECASE) for p in self.file_patterns["L1"])
+                base_severity = rule.get("severity", "medium")
+                severity = "info" if is_test else base_severity
+
                 findings.append(Finding(
                     id=f"RUBRIC-{rule.get('id')}",
-                    severity=rule.get("severity", "medium"),
+                    severity=severity,
                     message=rule.get("message", "Policy rule triggered"),
                     file=path,
                     line=matched_line,

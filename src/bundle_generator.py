@@ -1,4 +1,3 @@
-from __future__ import annotations
 """
 
 Bundle Generator - Creates cryptographically verifiable evidence bundles.
