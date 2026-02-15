@@ -699,6 +699,43 @@ def _map_findings(finding_dicts: list[dict]) -> list[AuditFinding]:
     return mapped
 
 
+# --- Guard Lane Routing (document governance) ---
+
+# Extension-to-lane mapping for non-code file types.
+# Files not matching any lane use the default code review pipeline.
+_EXTENSION_LANES: dict[str, str] = {
+    ".pdf": "pdf",
+    ".xlsx": "sheet",
+    ".xlsm": "sheet",
+    ".png": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".bmp": "image",
+    ".tiff": "image",
+}
+
+
+def detect_guard_lane(filename: str) -> Optional[str]:
+    """Return the guard lane for *filename* based on its extension.
+
+    Returns ``None`` when the file should use the default code lane.
+    """
+    ext = Path(filename).suffix.lower()
+    return _EXTENSION_LANES.get(ext)
+
+
+def group_files_by_lane(filenames: list[str]) -> dict[Optional[str], list[str]]:
+    """Group *filenames* by their guard lane.
+
+    Returns a dict keyed by lane name (or ``None`` for the default code lane).
+    """
+    groups: dict[Optional[str], list[str]] = {}
+    for name in filenames:
+        lane = detect_guard_lane(name)
+        groups.setdefault(lane, []).append(name)
+    return groups
+
+
 def fetch_pr_diff(pr: PullRequest) -> str:
     """Fetch the diff content for a PR."""
     stub_path = os.environ.get("STUB_DIFF_PATH")
