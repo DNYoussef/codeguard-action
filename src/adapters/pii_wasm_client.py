@@ -100,8 +100,11 @@ class PIIWasmClient:
             try:
                 start(store)
             except wasmtime.ExitTrap as e:
+                # All other codes (e.g., 1 or 2 on Go panic) must raise an error.
                 if e.code != 0:
-                    raise
+                    raise RuntimeError(f"WASM execution failed with exit code: {e.code}") from e
+            except Exception as e:
+                 raise RuntimeError(f"WASM execution error: {e}") from e
                 
             # Read output
             with open(f_out_path, 'r', encoding='utf-8') as f:
