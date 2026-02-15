@@ -298,8 +298,8 @@ class TestDecisionPolicyResolutionRegression(unittest.TestCase):
             self.assertEqual(exit_ctx.exception.code, 0)
             called_policy = mock_engine.call_args[0][0]
             self.assertEqual(
-                Path(called_policy),
-                policy_path,
+                Path(called_policy).resolve(),
+                policy_path.resolve(),
                 "Decision policy must resolve relative to workspace",
             )
 

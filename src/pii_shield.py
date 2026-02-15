@@ -7,7 +7,6 @@ Supports:
   - fail-open/fail-closed behavior
 """
 
-from __future__ import annotations
 
 import hashlib
 import ipaddress
@@ -401,6 +400,17 @@ class PIIShieldClient:
         include_findings: bool,
         purpose: str | None,
     ) -> PIIShieldResult:
+        if self.endpoint and self.endpoint.lower().startswith("http"):
+            return self._sanitize_via_http(text, input_format, include_findings, purpose)
+        return self._sanitize_via_wasm(text, input_format, include_findings, purpose)
+
+    def _sanitize_via_http(
+        self,
+        text: str,
+        input_format: str,
+        include_findings: bool,
+        purpose: str | None,
+    ) -> PIIShieldResult:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -467,6 +477,58 @@ class PIIShieldClient:
                 "engine_version": body.get("engine_version") or body.get("version"),
                 "model": body.get("model"),
                 "input_format": input_format,
+            },
+        )
+
+    def _sanitize_via_wasm(
+        self,
+        text: str,
+        input_format: str,
+        include_findings: bool,
+        purpose: str | None,
+    ) -> PIIShieldResult:
+        # WASM Integration: Use local WASM client instead of HTTP
+        try:
+            from .adapters.pii_wasm_client import PIIWasmClient
+        except ImportError:
+            # Fallback for when running without package context (e.g. local tests)
+            from adapters.pii_wasm_client import PIIWasmClient
+        
+        client = PIIWasmClient()
+        # Note: WASM client currently only supports text redaction (ScanAndRedact)
+        # It does not yet support structured findings or config override via arguments in the same way 
+        # as the HTTP API (payload).
+        # However, for "The Leak Test", we primarily need redaction.
+        
+        # TODO: Pass configuration (safe_regex_list, etc) to WASM if not already handled by ENV vars.
+        # The current WASM implementation relies on ENV vars read by the Go process.
+        
+        try:
+            sanitized = client.redact(text)
+        except Exception as exc:
+             raise RuntimeError(f"WASM PII-Shield failed: {exc}") from exc
+
+        # Mocking the rich response structure of the HTTP API for compatibility
+        # iterating over the redacted string to check if it changed
+        changed = (sanitized != text)
+        redaction_count = 0
+        if changed:
+            # Simple heuristic since WASM doesn't return count yet
+            redaction_count = sanitized.count("[HIDDEN")
+            
+        return PIIShieldResult(
+            sanitized_text=sanitized,
+            changed=changed,
+            redaction_count=redaction_count,
+            redactions_by_type={}, # WASM simple output doesn't provide this yet
+            mode="wasm-local",
+            provider="pii-shield-wasm",
+            input_hash=self._sha256(text),
+            output_hash=self._sha256(sanitized),
+            signals=[], # WASM simple output doesn't provide signals yet
+            metadata={
+                "input_format": input_format,
+                "engine": "wasm",
             },
         )
 

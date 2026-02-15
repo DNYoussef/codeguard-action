@@ -17,3 +17,6 @@ litellm>=1.0.0
 
 # Output formatting
 rich>=13.0
+
+# WASM Runtime
+wasmtime>=16.0.0

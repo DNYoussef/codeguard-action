@@ -11,7 +11,6 @@ Strings are passed through as-is to match kernel canonical behavior
 (guardspine-kernel/src/canonical.ts).
 """
 
-from __future__ import annotations
 
 import json
 import math
