@@ -2,7 +2,7 @@ import os
 import json
 import wasmtime
 from pathlib import Path
-from wasmtime import Engine, Store, Module, Linker, WasiConfig
+from wasmtime import Engine, Store, Module, Linker, WasiConfig, ExitTrap
 
 class PIIWasmClient:
     _instance = None
@@ -99,8 +99,9 @@ class PIIWasmClient:
             start = instance.exports(store)["_start"]
             try:
                 start(store)
-            except Exception:
-                pass
+            except wasmtime.ExitTrap as e:
+                if e.code != 0:
+                    raise
                 
             # Read output
             with open(f_out_path, 'r', encoding='utf-8') as f:

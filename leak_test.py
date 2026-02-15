@@ -19,40 +19,28 @@ def main():
     print("Running PII-Shield WASM Leak Test...")
     
     # Setup
-    client = PIIShieldClient(
-        enabled=True,
-        endpoint="http://ignored.local",
-        api_key="ignored",
-        mode="auto" # triggers remote path if endpoint set
-    )
+    # Direct WASM Client Test
+    try:
+        from src.adapters.pii_wasm_client import PIIWasmClient
+    except ImportError:
+         # Fallback for when running from different CWD
+        from adapters.pii_wasm_client import PIIWasmClient
+
+    client = PIIWasmClient()
     
     # Test Data
-    # A high entropy secret
     secret = "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE" 
-    # High entropy string that looks like a key
-    
     print(f"Input: {secret}")
-    
+
     try:
-        # We force "remote" mode if that's what triggers _sanitize_remote
-        # OR we just call the method directly if we can't control it easily via public API
+        sanitized = client.redact(secret)
+        print(f"Output: {sanitized}")
         
-        # client.mode = "remote" # auto + endpoint does it
-        
-        result = client.sanitize_text(
-            text=secret,
-            input_format="text",
-            purpose="leak_test"
-        )
-        
-        print(f"Output: {result.sanitized_text}")
-        
-        if "[HIDDEN" in result.sanitized_text:
+        if "[HIDDEN" in sanitized:
             print("SUCCESS: Secret was redacted.")
             sys.exit(0)
         else:
             print("FAILURE: Secret was NOT redacted.")
-            print(f"Details: {result}")
             sys.exit(1)
             
     except Exception as e:
