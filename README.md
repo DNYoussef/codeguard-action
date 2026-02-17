@@ -7,6 +7,8 @@
 
 ---
 
+> **New here?** Start with the [5-Minute Quick Start](docs/QUICKSTART.md) -- one workflow file, one API key, done.
+
 ## The Problem
 
 GitHub shows *that* someone clicked "Approve."

@@ -67,6 +67,9 @@ STEP 3: Open a pull request (1 minute)
 
 Make any change on a branch and open a PR. CodeGuard runs automatically.
 
+First run takes ~2 minutes while GitHub builds the Docker image. Subsequent
+runs reuse the cached image and finish faster.
+
 Within 1-2 minutes you'll see:
 
   1. A "Decision Card" comment on the PR:
@@ -108,7 +111,7 @@ Next steps (when you're ready):
   Enable PII redaction          pii_shield_enabled: true
   Upload to Security tab        upload_sarif: true
   Auto-merge clean PRs          auto_merge: true
-  Use specific models           model_1: anthropic/claude-sonnet-4
+  Use specific models           model_1: anthropic/claude-sonnet-4.5
                                 model_2: openai/gpt-4.1
                                 model_3: google/gemini-2.5-flash
 
@@ -144,7 +147,7 @@ Enterprise (multi-model + PII protection + SARIF):
       fail_on_high_risk: true
       upload_sarif: true
       pii_shield_enabled: true
-      model_1: anthropic/claude-sonnet-4
+      model_1: anthropic/claude-sonnet-4.5
       model_2: openai/gpt-4.1
       model_3: google/gemini-2.5-flash
 
