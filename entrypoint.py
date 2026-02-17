@@ -181,7 +181,7 @@ def main():
     openai_key = get_env("INPUT_OPENAI_API_KEY") or get_env("OPENAI_API_KEY")
     anthropic_key = get_env("INPUT_ANTHROPIC_API_KEY") or get_env("ANTHROPIC_API_KEY")
     openrouter_key = get_env("INPUT_OPENROUTER_API_KEY") or get_env("OPENROUTER_API_KEY")
-    openrouter_model = get_env("INPUT_OPENROUTER_MODEL", "anthropic/claude-sonnet-4")
+    openrouter_model = get_env("INPUT_OPENROUTER_MODEL", "anthropic/claude-sonnet-4.5")
 
     # Ollama for local/on-prem AI (no API key needed)
     ollama_host = get_env("INPUT_OLLAMA_HOST") or get_env("OLLAMA_HOST")
@@ -213,7 +213,6 @@ def main():
     )
     # Forward PII_SAFE_REGEX_LIST to the PII-Shield sidecar via env var
     # (v1.2.0+ reads this to bypass entropy checks for whitelisted patterns)
-    import os
     os.environ["PII_SAFE_REGEX_LIST"] = pii_safe_regex_list
     pii_client = PIIShieldClient(
         enabled=pii_shield_enabled,

@@ -47,7 +47,7 @@ inputs:
   openrouter_model:
     description: 'Model to use with OpenRouter (e.g., anthropic/claude-sonnet-4, google/gemini-3)'
     required: false
-    default: 'anthropic/claude-sonnet-4'
+    default: 'anthropic/claude-sonnet-4.5'
   ollama_host:
     description: 'Ollama server URL for local/on-prem AI (e.g., http://localhost:11434)'
     required: false

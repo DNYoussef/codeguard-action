@@ -34,30 +34,32 @@ Create this file in your repo:
 
 Paste this content:
 
-  name: CodeGuard
-  on: [pull_request]
+```yaml
+name: CodeGuard
+on: [pull_request]
 
-  permissions:
-    contents: read
-    pull-requests: write
+permissions:
+  contents: read
+  pull-requests: write
 
-  jobs:
-    governance:
-      runs-on: ubuntu-latest
-      steps:
-        - uses: actions/checkout@v4
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-        - uses: DNYoussef/codeguard-action@v1
-          id: guard
-          with:
-            github_token: ${{ secrets.GITHUB_TOKEN }}
-            openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+      - uses: DNYoussef/codeguard-action@v1
+        id: guard
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
 
-        - uses: actions/upload-artifact@v4
-          if: always()
-          with:
-            name: evidence-bundle-${{ github.event.pull_request.number }}
-            path: .guardspine/bundles/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-bundle-${{ github.event.pull_request.number }}
+          path: .guardspine/bundles/
+```
 
 That's the minimal config. Commit it to your default branch.
 
@@ -89,7 +91,7 @@ STEP 4: Verify a bundle (1 minute, optional)
 
 Download the evidence bundle JSON from the workflow artifacts, then:
 
-  pip install guardspine-verify
+  pip install git+https://github.com/DNYoussef/guardspine-verify
   guardspine-verify evidence-bundle.json
 
 Output shows: hash chain integrity, event sequence, and whether any
@@ -121,44 +123,52 @@ CONFIGURATION CHEAT SHEET
 
 Minimal (rules + single AI model):
 
-  - uses: DNYoussef/codeguard-action@v1
-    with:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
-      openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+```yaml
+- uses: DNYoussef/codeguard-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+```
 
 Standard (compliance rubric + block high risk):
 
-  - uses: DNYoussef/codeguard-action@v1
-    with:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
-      openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-      rubric: soc2
-      risk_threshold: L3
-      fail_on_high_risk: true
+```yaml
+- uses: DNYoussef/codeguard-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    rubric: soc2
+    risk_threshold: L3
+    fail_on_high_risk: true
+```
 
 Enterprise (multi-model + PII protection + SARIF):
 
-  - uses: DNYoussef/codeguard-action@v1
-    with:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
-      openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
-      rubric: hipaa
-      risk_threshold: L2
-      fail_on_high_risk: true
-      upload_sarif: true
-      pii_shield_enabled: true
-      model_1: anthropic/claude-sonnet-4.5
-      model_2: openai/gpt-4.1
-      model_3: google/gemini-2.5-flash
+```yaml
+- uses: DNYoussef/codeguard-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+    rubric: hipaa
+    risk_threshold: L2
+    fail_on_high_risk: true
+    upload_sarif: true
+    pii_shield_enabled: true
+    model_1: anthropic/claude-sonnet-4.5
+    model_2: openai/gpt-4.1
+    model_3: google/gemini-2.5-flash
+```
 
 Air-gapped (Ollama, no external API calls):
 
-  - uses: DNYoussef/codeguard-action@v1
-    with:
-      github_token: ${{ secrets.GITHUB_TOKEN }}
-      ollama_host: http://your-ollama-server:11434
-      ollama_model: llama3.3
-      ai_review: true
+```yaml
+- uses: DNYoussef/codeguard-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    ollama_host: http://your-ollama-server:11434
+    ollama_model: llama3.3
+    ai_review: true
+```
 
 
 RISK TIERS EXPLAINED
