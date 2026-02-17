@@ -240,9 +240,6 @@ def _empty_packet():
 # Report
 # ---------------------------------------------------------------------------
 
-_TIER_RANK = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
-
-
 def compute_stats(
     results: list[Result],
     threshold_fp: float,

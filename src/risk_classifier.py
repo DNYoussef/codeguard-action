@@ -495,6 +495,31 @@ class RiskClassifier:
                     provable=False,
                 ))
 
+        elif consensus_risk == "comment":
+            # AI is uncertain: single-downgrade zone findings (soften keyword
+            # matches the AI couldn't confirm) and inject medium-severity
+            # findings from AI concerns for the evidence bundle.
+            for f in findings:
+                if f.zone and not f.rule_id.startswith("RUBRIC"):
+                    f.severity = self._downgrade_severity(f.severity)
+            mmr = analysis.get("multi_model_review", {})
+            ai_concerns = []
+            if mmr.get("consensus"):
+                ai_concerns = mmr["consensus"].get("combined_concerns", [])
+            elif ai_summary.get("concerns"):
+                ai_concerns = ai_summary["concerns"]
+            for idx, concern in enumerate(ai_concerns[:3]):
+                findings.append(Finding(
+                    id=f"AI-COMMENT-{idx}",
+                    severity="medium",
+                    message=f"AI concern: {concern}",
+                    file="",
+                    line=None,
+                    rule_id="ai-consensus",
+                    zone=None,
+                    provable=False,
+                ))
+
         # Calculate risk drivers
         risk_drivers = self._calculate_drivers(
             files, sensitive_zones, findings, ai_summary

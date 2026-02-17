@@ -852,33 +852,46 @@ For {rubric.upper()} compliance, evaluate:
 Include rubric_scores in your JSON response.
 """
 
-        return f"""You are a senior security engineer triaging a code diff. Your job is to distinguish SAFE code from DANGEROUS code. Most code is safe. Only flag code that is actually exploitable.
+        return f"""You are a senior security engineer reviewing a code diff for vulnerabilities. Your job is to catch security regressions -- code changes that weaken defenses, remove validation, or introduce exploitable flaws.
 
 ## Decision Criteria
 
-**approve** - Use this when:
-- Code uses parameterized queries (?, %s, :name placeholders) even if it touches SQL
-- Code uses safe crypto (bcrypt, argon2, scrypt, AES-256, secrets module) even if it touches crypto
-- Code reads credentials from env vars, vaults, keyrings, config files (not hardcoded)
-- Code uses subprocess with list args (no shell=True), shlex.quote, or allowlists
-- Code uses safe deserialization (json.loads, dataclasses, msgpack, yaml.safe_load)
-- Code uses path sanitization (os.path.basename, Path.resolve, allowlists)
-- Code uses template engines with autoescaping (Jinja2 default, Django templates)
-- Code is tests, docs, or configuration only
+**approve** - Code is safe:
+- Uses parameterized queries, safe crypto, safe deserialization
+- Reads credentials from env/vaults (not hardcoded)
+- Tests, docs, or configuration only
+- Adds or strengthens security checks
 
-**request_changes** - Use this ONLY when code has an actual exploitable vulnerability:
+**request_changes** - Code introduces or exposes a vulnerability:
 - Unsanitized user input in SQL, commands, templates, or file paths
-- Hardcoded secrets, API keys, passwords as string literals in source
-- Dangerous deserialization of untrusted input (pickle, yaml.load without SafeLoader)
+- Hardcoded secrets, API keys, passwords in source
+- Dangerous deserialization (pickle, yaml.load without SafeLoader)
 - Disabled security features (shell=True with user input, autoescaping off)
-- Weak crypto for security purposes (MD5/SHA1 for passwords, random.random for tokens)
+- Weak crypto for security (MD5/SHA1 for passwords, random for tokens)
+- Removing or weakening existing input validation or sanitization
+- Missing or bypassed authentication/authorization checks
+- Race conditions in security-critical operations (file permissions, auth state)
+- Regex patterns vulnerable to ReDoS (catastrophic backtracking)
+- Algorithmic complexity allowing denial of service (unbounded loops on user input)
+- Relaxed or removed TLS/certificate validation
+- Sandbox or isolation escapes (format string abuse, template injection)
+- Open redirect via unvalidated URL parameters
+- HTTP request smuggling via relaxed parsing or removed checks
+- Removing guards, assertions, or boundary checks from security-sensitive code
 
-**comment** - Use when code is neither clearly safe nor clearly dangerous
+**comment** - Code is suspicious but you are not certain it is exploitable.
+List your specific concerns in the concerns array.
+
+## Key Principle
+
+Pay special attention to REMOVED code. If the diff removes validation,
+sanitization, auth checks, or tightens parsing -- that is a regression.
+A diff that relaxes constraints is more dangerous than one that adds code.
 
 ## Diff to Review
 
 ```diff
-{diff_content[:6000]}
+{diff_content[:15000]}
 ```
 {rubric_section}
 ## Required Response (JSON only)
@@ -886,13 +899,13 @@ Include rubric_scores in your JSON response.
 {{
     "summary": "One sentence: what this code does",
     "intent": "feature|bugfix|refactor|config|security|documentation",
-    "concerns": [],
+    "concerns": ["specific concern 1", "specific concern 2"],
     "risk_assessment": "approve|request_changes|comment",
     "confidence": 0.85,
     "rubric_scores": {{}}
 }}
 
-IMPORTANT: If the code follows security best practices, respond with "approve" and empty concerns array. Only use "request_changes" for actual vulnerabilities."""
+Respond ONLY with the JSON object above."""
 
     def _parse_review_response(self, response: str) -> dict:
         """Parse the JSON response from a model."""
