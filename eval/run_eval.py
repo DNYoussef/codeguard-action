@@ -78,7 +78,13 @@ class Result:
 
     @property
     def flagged(self) -> bool:
+        """Decision engine enforcement: block or conditions."""
         return self.decision in ("block", "merge-with-conditions")
+
+    @property
+    def ai_detected(self) -> bool:
+        """AI signal: consensus is not approve (request_changes or comment)."""
+        return self.consensus not in ("approve", "", None)
 
     @property
     def correct(self) -> bool:
@@ -234,6 +240,9 @@ def _empty_packet():
 # Report
 # ---------------------------------------------------------------------------
 
+_TIER_RANK = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}
+
+
 def compute_stats(
     results: list[Result],
     threshold_fp: float,
@@ -246,6 +255,7 @@ def compute_stats(
     vuln = [r for r in results if r.expected_flag]
     clean = [r for r in results if not r.expected_flag]
 
+    # Decision engine metrics (block/conditions)
     fp = sum(1 for r in results if r.false_positive)
     fn = sum(1 for r in results if r.false_negative)
     correct = sum(1 for r in results if r.correct)
@@ -253,6 +263,15 @@ def compute_stats(
     detect_rate = sum(1 for r in vuln if r.flagged) / len(vuln) * 100 if vuln else 0
     fp_rate = fp / len(clean) * 100 if clean else 0
     fn_rate = fn / len(vuln) * 100 if vuln else 0
+
+    # AI signal metrics (consensus != approve)
+    ai_vuln_detected = sum(1 for r in vuln if r.ai_detected)
+    ai_clean_alarmed = sum(1 for r in clean if r.ai_detected)
+    ai_detect_pct = round(ai_vuln_detected / len(vuln) * 100, 1) if vuln else 0
+    ai_fp_pct = round(ai_clean_alarmed / len(clean) * 100, 1) if clean else 0
+
+    # Tier classification accuracy (how well does the classifier assign tiers)
+    tier_dist = dict(Counter(r.tier_final for r in results))
 
     return {
         "total": total,
@@ -265,7 +284,12 @@ def compute_stats(
         "fn": fn, "fn_rate_pct": round(fn_rate, 1),
         "fp_pass": fp_rate < threshold_fp,
         "fn_pass": fn_rate < threshold_fn,
-        "tier_dist": dict(Counter(r.tier_final for r in results)),
+        "tier_dist": tier_dist,
+        # AI signal layer
+        "ai_vuln_detected": ai_vuln_detected,
+        "ai_detect_pct": ai_detect_pct,
+        "ai_clean_alarmed": ai_clean_alarmed,
+        "ai_fp_pct": ai_fp_pct,
     }
 
 
@@ -281,10 +305,22 @@ def print_report(
     print("EVAL SUMMARY")
     print("=" * 60)
 
-    print(f"Accuracy:        {stats['correct']}/{stats['total']} ({stats['accuracy_pct']}%)")
-    print(f"Detection rate:  {stats['detect_rate_pct']}% ({stats['vuln_count']} vulnerable samples)")
-    print(f"FP rate:         {stats['fp']}/{stats['clean_count']} ({stats['fp_rate_pct']}%)")
-    print(f"FN rate:         {stats['fn']}/{stats['vuln_count']} ({stats['fn_rate_pct']}%)")
+    # Decision engine metrics
+    print("Decision Engine (enforcement):")
+    print(f"  Accuracy:        {stats['correct']}/{stats['total']} ({stats['accuracy_pct']}%)")
+    print(f"  Detection rate:  {stats['detect_rate_pct']}% ({stats['vuln_count']} vulnerable samples)")
+    print(f"  FP rate:         {stats['fp']}/{stats['clean_count']} ({stats['fp_rate_pct']}%)")
+    print(f"  FN rate:         {stats['fn']}/{stats['vuln_count']} ({stats['fn_rate_pct']}%)")
+
+    # AI signal metrics
+    ai_det = stats.get("ai_vuln_detected", 0)
+    ai_fp = stats.get("ai_clean_alarmed", 0)
+    print()
+    print("AI Signal (consensus != approve):")
+    print(f"  AI detection:    {ai_det}/{stats['vuln_count']} ({stats.get('ai_detect_pct', 0)}%)")
+    print(f"  AI false alarm:  {ai_fp}/{stats['clean_count']} ({stats.get('ai_fp_pct', 0)}%)")
+
+    print()
     print(f"Time:            {elapsed:.1f}s")
 
     print()
@@ -295,8 +331,18 @@ def print_report(
 
     # Tier distribution
     print()
+    print("Tier distribution:")
     for tier in sorted(stats["tier_dist"]):
         print(f"  {tier}: {stats['tier_dist'][tier]}")
+
+    # Per-sample tier detail (verbose only)
+    if verbose:
+        print()
+        print("Per-sample tier assignments:")
+        for r in results:
+            flag_icon = "!" if r.flagged else " "
+            ai_icon = "~" if r.ai_detected else " "
+            print(f"  [{flag_icon}{ai_icon}] {r.tier_preliminary}->{r.tier_final}  {r.category:10s}  {r.sample}")
 
     # By category
     print()
@@ -321,7 +367,8 @@ def print_report(
         print("FAILURES:")
         for r in failures:
             label = "FP" if r.false_positive else "FN"
-            print(f"  [{label}] {r.dataset}/{r.category}/{r.sample} -> {r.decision}")
+            ai_note = f" [AI: {r.consensus}]" if r.consensus else ""
+            print(f"  [{label}] {r.dataset}/{r.category}/{r.sample} -> {r.decision}{ai_note}")
 
 
 def write_results(
@@ -345,7 +392,7 @@ def write_results(
             "timestamp": ts,
             "forced_tier": forced_tier,
             "thresholds": {"fp": threshold_fp, "fn": threshold_fn, "noise": threshold_noise},
-            **{k: v for k, v in stats.items() if k != "tier_dist"},
+            **stats,
         },
         "results": [asdict(r) for r in results],
     }
@@ -445,6 +492,36 @@ def parse_args():
     return p.parse_args()
 
 
+def _preflight_api_key(api_key: str, tier: str | None) -> bool:
+    """Check API key has credits before running L1+ evals."""
+    if not tier or tier == "L0" or not api_key:
+        return True
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            "https://openrouter.ai/api/v1/auth/key",
+            headers={"Authorization": f"Bearer {api_key}"},
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read())["data"]
+        usage = data.get("usage", 0)
+        limit = data.get("limit")
+        remaining = data.get("limit_remaining")
+        print(f"OpenRouter usage: ${usage:.2f}", end="")
+        if limit is not None:
+            print(f"  limit: ${limit:.2f}  remaining: ${remaining:.2f}")
+            if remaining is not None and remaining <= 0:
+                print("ERROR: OpenRouter key has no remaining credits.")
+                print("  Raise the per-key limit at https://openrouter.ai/settings/keys")
+                return False
+        else:
+            print("  (no per-key limit)")
+        return True
+    except Exception as e:
+        print(f"WARNING: Could not verify API key: {e}")
+        return True  # proceed anyway, let the model call fail naturally
+
+
 def main():
     args = parse_args()
 
@@ -454,6 +531,10 @@ def main():
     # API key
     api_key = load_api_key()
     print(f"OpenRouter key: {'set' if api_key else 'MISSING'}")
+
+    # Pre-flight: verify key has credits for L1+
+    if not _preflight_api_key(api_key, args.tier):
+        sys.exit(1)
 
     # Components
     analyzer = make_analyzer(api_key, args.tier)
