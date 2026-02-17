@@ -181,9 +181,9 @@ class DiffAnalyzer:
             "mistral-large",
             "codellama-70b",
         ],
-        # Direct API models
-        "anthropic": ["claude-4.5-haiku"],
-        "openai": ["gpt-5.2-mini"],
+        # Direct API models (not OpenRouter format -- no provider/ prefix)
+        "anthropic": ["claude-haiku-4-5-20251001"],
+        "openai": ["gpt-4.1-mini"],
     }
 
     def __init__(
@@ -230,7 +230,7 @@ class DiffAnalyzer:
         self.openai_key = openai_key
         self.anthropic_key = anthropic_key
         self.openrouter_key = openrouter_key
-        self.openrouter_model = openrouter_model or "anthropic/claude-sonnet-4"
+        self.openrouter_model = openrouter_model or "anthropic/claude-sonnet-4.5"
         self.ollama_host = ollama_host
         self.ollama_model = ollama_model or "llama3.3"
         self.ai_review_enabled = ai_review
@@ -273,10 +273,18 @@ class DiffAnalyzer:
         Parse a model specification into (provider, model).
 
         Formats:
-          "provider/model" -> ("provider", "model")
+          "anthropic/claude-sonnet-4.5" -> ("openrouter", "anthropic/claude-sonnet-4.5")
+              when openrouter_key is set (OpenRouter model IDs use provider/model format)
+          "claude-haiku-4-5-20251001" -> ("anthropic", "claude-haiku-4-5-20251001")
+              when anthropic_key is set (direct API model IDs have no slash)
           "model" -> inferred provider based on available keys
         """
         if "/" in model_spec:
+            # Model IDs with slashes are OpenRouter format (e.g. "anthropic/claude-sonnet-4.5").
+            # Route through OpenRouter when available; fall back to direct API only if
+            # the user has that provider's key but not OpenRouter.
+            if self.openrouter_key:
+                return ("openrouter", model_spec)
             parts = model_spec.split("/", 1)
             return (parts[0], parts[1])
 

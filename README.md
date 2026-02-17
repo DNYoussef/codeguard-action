@@ -244,8 +244,8 @@ Configure **any combination** of models - same provider or mixed:
 │    model_3: codellama-70b                                                │
 │                                                                          │
 │  Option 3: Mixed direct APIs                                             │
-│    model_1: claude-4.5-haiku    (anthropic_api_key)                      │
-│    model_2: gpt-5.2-mini        (openai_api_key)                         │
+│    model_1: claude-haiku-4-5-20251001  (anthropic_api_key)               │
+│    model_2: gpt-4.1-mini              (openai_api_key)                   │
 │    model_3: llama4              (ollama_host)                            │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -255,8 +255,8 @@ Configure **any combination** of models - same provider or mixed:
 |----------|----------------|----------------|----------|
 | **Ollama** | Your infrastructure | llama4, mistral-large, codellama-70b | Air-gapped/regulated |
 | **OpenRouter** | OpenRouter servers | Claude 4.5, GPT 5.2, Gemini 3 | Flexibility, diversity |
-| **Anthropic** | Anthropic servers | Claude 4.5 Haiku | Direct Claude access |
-| **OpenAI** | OpenAI servers | GPT 5.2 Mini | Existing OpenAI users |
+| **Anthropic** | Anthropic servers | Claude Haiku 4.5 | Direct Claude access |
+| **OpenAI** | OpenAI servers | GPT 4.1 Mini | Existing OpenAI users |
 
 ### Risk Tiers
 
@@ -422,8 +422,8 @@ Configure up to 3 AI models for tier-based review. Models are used based on risk
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}
     ollama_host: http://localhost:11434
-    model_1: claude-4.5-haiku    # Uses Anthropic
-    model_2: gpt-5.2-mini        # Uses OpenAI
+    model_1: claude-haiku-4-5-20251001  # Uses Anthropic
+    model_2: gpt-4.1-mini               # Uses OpenAI
     model_3: llama4              # Uses Ollama
 ```
 
@@ -432,12 +432,12 @@ Configure up to 3 AI models for tier-based review. Models are used based on risk
 Just provide one API key - CodeGuard will use default models:
 
 ```yaml
-# Anthropic only (uses Claude 4.5 Haiku for all tiers)
+# Anthropic only (uses Claude Haiku 4.5 for all tiers)
 - uses: DNYoussef/codeguard-action@v1
   with:
     anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
-# OpenAI only (uses GPT 5.2 Mini for all tiers)
+# OpenAI only (uses GPT 4.1 Mini for all tiers)
 - uses: DNYoussef/codeguard-action@v1
   with:
     openai_api_key: ${{ secrets.OPENAI_API_KEY }}

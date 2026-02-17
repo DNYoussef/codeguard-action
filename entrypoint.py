@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from github import Github
+from github import Auth, Github
 from github.PullRequest import PullRequest
 
 from src.analyzer import DiffAnalyzer
@@ -304,7 +304,7 @@ def main():
     print("::endgroup::")
 
     # Initialize GitHub client
-    gh = Github(github_token)
+    gh = Github(auth=Auth.Token(github_token))
     repo = gh.get_repo(github_repository)
     pr = repo.get_pull(pr_number)
 
