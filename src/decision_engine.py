@@ -57,7 +57,7 @@ _DEFAULT_POLICY = {
     ],
     "condition_rules": [
         {"severity": "critical", "provable_only": False},
-        {"severity": "high", "provable_only": True},
+        {"severity": "high", "provable_only": False},
     ],
     "max_conditions": 2,
 }

@@ -47,6 +47,7 @@ DATASETS = {
     "cvefixes": "cvefixes",
     "juliet": "juliet",
     "castle": "castle",
+    "real-cve": "real-cve",
 }
 
 
