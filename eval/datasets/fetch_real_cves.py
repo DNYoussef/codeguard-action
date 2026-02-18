@@ -233,7 +233,16 @@ def main():
 
         # Clone (or reuse)
         first_commit = cves[0]["fix_commit"]
-        clone_path = clone_repo(repo, first_commit)
+        if args.skip_clone:
+            org, name = repo.split("/")
+            clone_path = _CLONE_DIR / name
+            if not clone_path.exists():
+                print(f"  ERROR: --skip-clone but no cached clone for {repo}")
+                print(f"  Expected: {clone_path}")
+                continue
+            print(f"  Using cached clone (--skip-clone): {clone_path}")
+        else:
+            clone_path = clone_repo(repo, first_commit)
         if not clone_path:
             print(f"  SKIPPING {repo}: clone failed")
             continue

@@ -6,9 +6,11 @@ Live mode:    Only when env var CODEGUARD_LIVE=1. Runs real CodeGuard action.
 """
 from __future__ import annotations
 
+import copy
 import json
 import logging
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -60,11 +62,11 @@ def _apply_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
     for key, default in _SAFE_DEFAULTS.items():
         if key not in data:
             warnings.append(f"Missing field '{key}', using default")
-            data[key] = default
+            data[key] = copy.deepcopy(default)
     # Ensure council sub-fields
     council = data.get("council", {})
     if not isinstance(council, dict):
-        council = _SAFE_DEFAULTS["council"]
+        council = copy.deepcopy(_SAFE_DEFAULTS["council"])
         data["council"] = council
     for sub_key, sub_default in _SAFE_DEFAULTS["council"].items():
         if sub_key not in council:
@@ -95,21 +97,41 @@ def _load_fixture(case_id: str) -> Dict[str, Any]:
     return data
 
 
-def _run_live(case: TestCase) -> Dict[str, Any]:
-    """
-    Run CodeGuard action against a real diff.
+def _tier_to_int(tier: str) -> int:
+    """Convert L0-L4 tier string to integer."""
+    return {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 4}.get(tier, 0)
 
-    # TODO: wire to actual CodeGuard action
-    This would:
-    1. Create a temp git repo with diff_builder
-    2. Set up GitHub context with mock_github_context
-    3. Invoke the CodeGuard action entrypoint
-    4. Parse and normalize the output
-    """
-    raise NotImplementedError(
-        "Live mode not yet wired. Set CODEGUARD_LIVE=0 or remove the env var. "
-        "See codeguard_runner.py for integration points."
-    )
+
+def _run_live(case: TestCase) -> Dict[str, Any]:
+    """Run CodeGuard pipeline against a test case diff (L0, rules-only)."""
+    root = Path(__file__).resolve().parent.parent.parent
+    sys.path.insert(0, str(root))
+    from src.analyzer import DiffAnalyzer
+    from src.risk_classifier import RiskClassifier
+
+    analyzer = DiffAnalyzer(openrouter_key="", ai_review=False)
+    classifier = RiskClassifier(rubric="default")
+
+    # Run pipeline
+    analysis = analyzer.analyze(case.diff_content, rubric="default", tier_override=None)
+    risk = classifier.classify(analysis)
+    findings = risk.get("findings", [])
+
+    # Map to output format
+    signals = [f.get("zone") or f.get("rule_id", "") for f in findings if isinstance(f, dict)]
+    categories = list(set(f.get("zone", "") for f in findings if isinstance(f, dict) and f.get("zone")))
+
+    return {
+        "detected": len(findings) > 0,
+        "risk_level": _tier_to_int(risk.get("risk_tier", "L0")),
+        "signals": [s for s in signals if s],
+        "categories": [c for c in categories if c],
+        "findings": findings,
+        "council": {"enabled": False, "models": [], "naive": {},
+                    "round_robin": {}, "consensus": {
+                        "risk_level": _tier_to_int(risk.get("risk_tier", "L0")),
+                        "signals": [], "findings": [], "human_required": False}},
+    }
 
 
 def run(case: TestCase, mode: str = "replay") -> ParsedResult:

@@ -1,6 +1,6 @@
 # CodeGuard Validation Report
 
-Generated: 2026-02-18T01:59:57.542276+00:00
+Generated: 2026-02-18T13:06:50.220267+00:00
 Total cases: 12
 
 ## Headline Metrics
@@ -39,7 +39,7 @@ Total cases: 12
 
 - **Avg Naive Hit Rate:** 100.0%
 - **Consensus Correct Rate:** 100.0%
-- **Avg Actionability:** 0.0%
+- **Avg Actionability:** 100.0%
 
 ### Round-Robin Delta by Case
 

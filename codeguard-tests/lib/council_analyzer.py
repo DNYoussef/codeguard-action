@@ -34,7 +34,8 @@ def _signal_overlap(model_signals: List[str], expected_signals: List[str],
     return len(expected & actual)
 
 
-def analyze_council(case: TestCase, council: Dict[str, Any]) -> CouncilScore:
+def analyze_council(case: TestCase, council: Dict[str, Any],
+                    top_level_findings: List[Dict[str, Any]] = None) -> CouncilScore:
     """
     Score council quality for a single L2+ test case.
 
@@ -104,19 +105,20 @@ def analyze_council(case: TestCase, council: Dict[str, Any]) -> CouncilScore:
         consensus_correct = abs(consensus_risk - expected) <= 1
 
     # 4. Actionability score
-    findings = council.get("consensus", {}).get("findings", [])
-    # findings in consensus might be IDs; check the top-level findings list
-    # from the full output
-    all_findings = []
+    consensus_findings = council.get("consensus", {}).get("findings", [])
 
-    # Try to get full finding objects from the raw output
-    # (passed via council or we fall back to consensus findings)
-    if isinstance(findings, list) and findings and isinstance(findings[0], dict):
-        all_findings = findings
-    else:
-        # findings are IDs; can't compute actionability from IDs alone
-        # Fall back: check if council has full finding data elsewhere
-        all_findings = []
+    # Resolve finding IDs against top-level findings
+    all_findings = []
+    if isinstance(consensus_findings, list) and consensus_findings:
+        if isinstance(consensus_findings[0], dict):
+            # Already full finding objects
+            all_findings = consensus_findings
+        elif top_level_findings:
+            # IDs -- resolve against top-level findings list
+            finding_map = {f.get("id"): f for f in top_level_findings if isinstance(f, dict)}
+            for fid in consensus_findings:
+                if fid in finding_map:
+                    all_findings.append(finding_map[fid])
 
     actionable = 0
     total_findings = len(all_findings)

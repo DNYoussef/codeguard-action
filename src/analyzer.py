@@ -983,10 +983,12 @@ Respond ONLY with the JSON object above."""
         )
         consensus_risk = sorted_assessments[0][0] if sorted_assessments else "comment"
 
-        # Agreement score
+        # Agreement score: fraction of models that chose the consensus pick.
+        # With strictest-wins, this measures how many models actually flagged
+        # the strictest signal (not the majority share).
         if len(valid_reviews) > 1:
-            max_agreement = max(assessment_counts.values())
-            agreement_score = max_agreement / len(valid_reviews)
+            consensus_count = assessment_counts.get(consensus_risk, 0)
+            agreement_score = consensus_count / len(valid_reviews)
         else:
             agreement_score = 1.0
 

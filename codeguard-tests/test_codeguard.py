@@ -140,7 +140,7 @@ def test_council_consensus(case: TestCase, codeguard_runner):
     if not council.get("enabled", False):
         pytest.skip(f"{case.id}: Council not enabled for L{case.expected_risk_level}")
 
-    score = analyze_council(case, council)
+    score = analyze_council(case, council, top_level_findings=result.findings)
     codeguard_runner.record_council_score(score)
 
     # Naive hit rate: at least one model should catch the core issue

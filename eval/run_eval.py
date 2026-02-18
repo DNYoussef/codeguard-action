@@ -59,7 +59,7 @@ DATASETS = {
 class Result:
     sample: str
     dataset: str
-    category: str          # vulnerable | clean
+    category: str          # vulnerable | clean | introducing (introducing excluded from scoring)
     expected_flag: bool
     tier_preliminary: str
     tier_final: str
@@ -125,7 +125,10 @@ def run_sample(
 
     diff_content = sample_path.read_text(encoding="utf-8")
     category = sample_path.parent.name
-    expected_flag = category in ("vulnerable", "introducing")
+    expected_flag = category == "vulnerable"
+
+    if category == "introducing":
+        errors.append("EXCLUDED: introducing patches have unverified labels")
 
     # 1. Analyze (pass forced_tier so analyzer uses correct model count)
     try:
@@ -245,12 +248,14 @@ def compute_stats(
     threshold_fp: float,
     threshold_fn: float,
 ) -> dict:
-    total = len(results)
+    # Exclude introducing samples from scoring -- labels are unverified
+    scored = [r for r in results if r.category in ("vulnerable", "clean")]
+    total = len(scored)
     if total == 0:
-        return {"total": 0}
+        return {"total": 0, "excluded_introducing": len(results) - len(scored)}
 
-    vuln = [r for r in results if r.expected_flag]
-    clean = [r for r in results if not r.expected_flag]
+    vuln = [r for r in scored if r.expected_flag]
+    clean = [r for r in scored if not r.expected_flag]
 
     # Decision engine metrics (block/conditions)
     fp = sum(1 for r in results if r.false_positive)
@@ -272,6 +277,7 @@ def compute_stats(
 
     return {
         "total": total,
+        "excluded_introducing": len(results) - len(scored),
         "correct": correct,
         "accuracy_pct": round(correct / total * 100, 1),
         "vuln_count": len(vuln),
@@ -305,6 +311,9 @@ def print_report(
     # Decision engine metrics
     print("Decision Engine (enforcement):")
     print(f"  Accuracy:        {stats['correct']}/{stats['total']} ({stats['accuracy_pct']}%)")
+    excluded = stats.get("excluded_introducing", 0)
+    if excluded:
+        print(f"  Excluded:        {excluded} introducing samples (unverified labels)")
     print(f"  Detection rate:  {stats['detect_rate_pct']}% ({stats['vuln_count']} vulnerable samples)")
     print(f"  FP rate:         {stats['fp']}/{stats['clean_count']} ({stats['fp_rate_pct']}%)")
     print(f"  FN rate:         {stats['fn']}/{stats['vuln_count']} ({stats['fn_rate_pct']}%)")

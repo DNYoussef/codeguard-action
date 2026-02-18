@@ -292,8 +292,12 @@ class RiskClassifierTests(unittest.TestCase):
         self.assertEqual(auth_findings[0]["severity"], "high",
                          "Low agreement approve should not trigger downgrade")
 
-    def test_ai_request_changes_low_agreement_still_upgrades(self):
-        """Even 1-of-3 request_changes should trigger upgrade (no threshold)."""
+    def test_ai_request_changes_low_agreement_no_upgrade(self):
+        """1-of-3 request_changes (agreement < 0.6) should NOT upgrade severity.
+
+        Minority dissent is captured as medium advisory findings (AI-MINORITY-*)
+        but zone findings stay at their original severity.
+        """
         analysis = {
             "files": [{"path": "src/config.py", "hunks": []}],
             "sensitive_zones": [
@@ -316,12 +320,14 @@ class RiskClassifierTests(unittest.TestCase):
 
         config_findings = [f for f in result["findings"] if f.get("zone") == "config"]
         self.assertTrue(len(config_findings) > 0)
-        self.assertEqual(config_findings[0]["severity"], "high",
-                         "1-of-3 request_changes should still upgrade medium to high")
+        self.assertEqual(config_findings[0]["severity"], "medium",
+                         "1-of-3 request_changes should NOT upgrade medium to high")
 
         ai_findings = [f for f in result["findings"] if f.get("rule_id") == "ai-consensus"]
         self.assertTrue(len(ai_findings) > 0,
-                        "AI concerns should be injected even with low agreement")
+                        "AI minority concerns should still be injected")
+        self.assertEqual(ai_findings[0]["severity"], "medium",
+                         "Minority concerns should be medium (advisory only)")
 
     def test_no_ai_data_preserves_baseline_behavior(self):
         """Without AI data, classify behaves identically to before."""
