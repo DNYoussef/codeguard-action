@@ -132,6 +132,39 @@ def extract_vuln_diff(clone_path: Path, entry: dict) -> Path | None:
     return out_path
 
 
+def extract_introducing_diff(clone_path: Path, entry: dict) -> Path | None:
+    """Extract the forward diff of the bug-introducing commit."""
+    intro_commit = entry.get("introducing_commit")
+    if not intro_commit:
+        return None
+    cve = entry["cve_id"]
+
+    # Fetch the introducing commit if needed
+    test = run(["git", "cat-file", "-t", intro_commit], cwd=clone_path, check=False)
+    if "commit" not in test:
+        run(["git", "fetch", "origin", intro_commit, "--depth=2"],
+            cwd=clone_path, check=False)
+
+    # Forward diff: shows the vulnerable code being added
+    diff = run(["git", "diff", f"{intro_commit}~1", intro_commit, "--", "*.py"],
+               cwd=clone_path)
+    if not diff.strip():
+        diff = run(["git", "diff", f"{intro_commit}~1", intro_commit], cwd=clone_path)
+    if not diff.strip():
+        print(f"  WARNING: Empty introducing diff for {cve}")
+        return None
+
+    safe_name = cve.lower().replace("-", "_")
+    out_dir = _SAMPLES_DIR / "introducing"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{safe_name}.patch"
+    out_path.write_text(diff, encoding="utf-8")
+
+    lines = len(diff.splitlines())
+    print(f"  Wrote introducing patch: {out_path.name} ({lines} lines)")
+    return out_path
+
+
 def extract_clean_diffs(clone_path: Path, repo: str, count: int = 2) -> list[Path]:
     """Extract clean (non-security) commits for FP measurement."""
     org, name = repo.split("/")
@@ -192,6 +225,7 @@ def main():
         repos.setdefault(e["repo"], []).append(e)
 
     vuln_count = 0
+    intro_count = 0
     clean_count = 0
 
     for repo, cves in repos.items():
@@ -199,7 +233,16 @@ def main():
 
         # Clone (or reuse)
         first_commit = cves[0]["fix_commit"]
-        clone_path = clone_repo(repo, first_commit)
+        if args.skip_clone:
+            org, name = repo.split("/")
+            clone_path = _CLONE_DIR / name
+            if not clone_path.exists():
+                print(f"  ERROR: --skip-clone but no cached clone for {repo}")
+                print(f"  Expected: {clone_path}")
+                continue
+            print(f"  Using cached clone (--skip-clone): {clone_path}")
+        else:
+            clone_path = clone_repo(repo, first_commit)
         if not clone_path:
             print(f"  SKIPPING {repo}: clone failed")
             continue
@@ -220,13 +263,21 @@ def main():
             if result:
                 vuln_count += 1
 
+        # Extract introducing diffs (when introducing_commit is known)
+        for cve_entry in cves:
+            if cve_entry.get("introducing_commit"):
+                print(f"\n  Introducing commit for {cve_entry['cve_id']}...")
+                result = extract_introducing_diff(clone_path, cve_entry)
+                if result:
+                    intro_count += 1
+
         # Extract clean diffs (once per repo)
         print(f"\n  Extracting clean commits...")
         clean_paths = extract_clean_diffs(clone_path, repo, args.clean_count)
         clean_count += len(clean_paths)
 
     print(f"\n{'=' * 60}")
-    print(f"Dataset complete: {vuln_count} vulnerable + {clean_count} clean patches")
+    print(f"Dataset complete: {vuln_count} vulnerable + {intro_count} introducing + {clean_count} clean patches")
     print(f"Location: {_SAMPLES_DIR}")
 
     if vuln_count == 0:

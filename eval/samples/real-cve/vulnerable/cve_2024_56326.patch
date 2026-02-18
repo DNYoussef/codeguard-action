@@ -1,5 +1,5 @@
 diff --git a/src/jinja2/sandbox.py b/src/jinja2/sandbox.py
-index 9c9dae2..8200195 100644
+index 9c9dae22..8200195d 100644
 --- a/src/jinja2/sandbox.py
 +++ b/src/jinja2/sandbox.py
 @@ -8,7 +8,6 @@ import typing as t
@@ -133,7 +133,7 @@ index 9c9dae2..8200195 100644
          # the double prefixes are to avoid double keyword argument
          # errors when proxying the call.
 diff --git a/tests/test_security.py b/tests/test_security.py
-index 864d5f7..9c7c442 100644
+index 864d5f7f..9c7c4427 100644
 --- a/tests/test_security.py
 +++ b/tests/test_security.py
 @@ -173,20 +173,3 @@ class TestStringFormatMap:

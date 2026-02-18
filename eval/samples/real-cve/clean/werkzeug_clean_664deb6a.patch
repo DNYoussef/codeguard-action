@@ -1,5 +1,5 @@
 diff --git a/CHANGES.rst b/CHANGES.rst
-index 206780a2..c0ae20ef 100644
+index 206780a293..c0ae20ef57 100644
 --- a/CHANGES.rst
 +++ b/CHANGES.rst
 @@ -45,6 +45,8 @@ Version 3.2.0
@@ -12,7 +12,7 @@ index 206780a2..c0ae20ef 100644
  
  Version 3.1.5
 diff --git a/src/werkzeug/wrappers/response.py b/src/werkzeug/wrappers/response.py
-index e05fa8a1..47072923 100644
+index e05fa8a129..470729231c 100644
 --- a/src/werkzeug/wrappers/response.py
 +++ b/src/werkzeug/wrappers/response.py
 @@ -667,22 +667,26 @@ class Response(_SansIOResponse):
@@ -70,7 +70,7 @@ index e05fa8a1..47072923 100644
              Range processing is skipped if length is 0 instead of
              raising a 416 Range Not Satisfiable error.
 diff --git a/tests/test_wrappers.py b/tests/test_wrappers.py
-index dd9c454f..9b1ce2e9 100644
+index dd9c454f13..9b1ce2e954 100644
 --- a/tests/test_wrappers.py
 +++ b/tests/test_wrappers.py
 @@ -595,6 +595,15 @@ def test_etag_response_412():
