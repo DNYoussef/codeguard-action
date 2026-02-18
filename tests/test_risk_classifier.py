@@ -272,8 +272,8 @@ class RiskClassifierTests(unittest.TestCase):
         self.assertTrue(len(ai_findings) > 0, "Expected AI concern findings")
         self.assertIn("Hardcoded secrets", ai_findings[0]["message"])
 
-    def test_ai_low_agreement_no_modulation(self):
-        """AI consensus with low agreement should not modulate findings."""
+    def test_ai_low_agreement_approve_no_modulation(self):
+        """AI approve with low agreement should not downgrade findings."""
         analysis = {
             "files": [{"path": "src/utils.py", "hunks": []}],
             "sensitive_zones": [
@@ -282,7 +282,7 @@ class RiskClassifierTests(unittest.TestCase):
             "lines_added": 3,
             "lines_removed": 0,
             "consensus_risk": "approve",
-            "agreement_score": 0.5,  # Below 0.8 threshold
+            "agreement_score": 0.5,  # Below 0.6 threshold
         }
         classifier = RiskClassifier(rubric="default")
         result = classifier.classify(analysis)
@@ -290,7 +290,38 @@ class RiskClassifierTests(unittest.TestCase):
         auth_findings = [f for f in result["findings"] if f.get("zone") == "auth"]
         self.assertTrue(len(auth_findings) > 0)
         self.assertEqual(auth_findings[0]["severity"], "high",
-                         "Low agreement should not trigger downgrade")
+                         "Low agreement approve should not trigger downgrade")
+
+    def test_ai_request_changes_low_agreement_still_upgrades(self):
+        """Even 1-of-3 request_changes should trigger upgrade (no threshold)."""
+        analysis = {
+            "files": [{"path": "src/config.py", "hunks": []}],
+            "sensitive_zones": [
+                {"zone": "config", "file": "src/config.py", "line": 5},
+            ],
+            "lines_added": 2,
+            "lines_removed": 0,
+            "consensus_risk": "request_changes",
+            "agreement_score": 0.33,  # 1 of 3 models
+            "multi_model_review": {
+                "consensus": {
+                    "consensus_risk": "request_changes",
+                    "agreement_score": 0.33,
+                    "combined_concerns": ["Potential path traversal"],
+                },
+            },
+        }
+        classifier = RiskClassifier(rubric="default")
+        result = classifier.classify(analysis)
+
+        config_findings = [f for f in result["findings"] if f.get("zone") == "config"]
+        self.assertTrue(len(config_findings) > 0)
+        self.assertEqual(config_findings[0]["severity"], "high",
+                         "1-of-3 request_changes should still upgrade medium to high")
+
+        ai_findings = [f for f in result["findings"] if f.get("rule_id") == "ai-consensus"]
+        self.assertTrue(len(ai_findings) > 0,
+                        "AI concerns should be injected even with low agreement")
 
     def test_no_ai_data_preserves_baseline_behavior(self):
         """Without AI data, classify behaves identically to before."""

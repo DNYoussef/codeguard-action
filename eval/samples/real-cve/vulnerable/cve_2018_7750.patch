@@ -1,5 +1,5 @@
 diff --git a/paramiko/common.py b/paramiko/common.py
-index 11c4121..0012372 100644
+index 11c4121d..0012372a 100644
 --- a/paramiko/common.py
 +++ b/paramiko/common.py
 @@ -32,7 +32,6 @@ MSG_USERAUTH_INFO_REQUEST, MSG_USERAUTH_INFO_RESPONSE = range(60, 62)
@@ -11,7 +11,7 @@ index 11c4121..0012372 100644
  MSG_CHANNEL_OPEN, MSG_CHANNEL_OPEN_SUCCESS, MSG_CHANNEL_OPEN_FAILURE, \
      MSG_CHANNEL_WINDOW_ADJUST, MSG_CHANNEL_DATA, MSG_CHANNEL_EXTENDED_DATA, \
 diff --git a/paramiko/transport.py b/paramiko/transport.py
-index 3ec3f0b..711f395 100644
+index 3ec3f0b2..711f395e 100644
 --- a/paramiko/transport.py
 +++ b/paramiko/transport.py
 @@ -49,7 +49,7 @@ from paramiko.common import (

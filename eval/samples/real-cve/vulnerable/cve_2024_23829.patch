@@ -1,5 +1,5 @@
 diff --git a/aiohttp/http_parser.py b/aiohttp/http_parser.py
-index 70804563..48d014d0 100644
+index 70804563b..48d014d00 100644
 --- a/aiohttp/http_parser.py
 +++ b/aiohttp/http_parser.py
 @@ -69,11 +69,12 @@ ASCIISET: Final[Set[str]] = set(string.printable)
@@ -103,7 +103,7 @@ index 70804563..48d014d0 100644
                                  chunk[:pos].decode("ascii", "surrogateescape")
                              )
 diff --git a/tests/test_http_parser.py b/tests/test_http_parser.py
-index 5258b053..cb3a8ef2 100644
+index 5258b0538..cb3a8ef2a 100644
 --- a/tests/test_http_parser.py
 +++ b/tests/test_http_parser.py
 @@ -3,8 +3,7 @@

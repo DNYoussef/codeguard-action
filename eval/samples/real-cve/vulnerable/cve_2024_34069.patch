@@ -1,5 +1,5 @@
 diff --git a/src/werkzeug/debug/__init__.py b/src/werkzeug/debug/__init__.py
-index 6bef30fb..a55480aa 100644
+index 6bef30fbca..a55480aa32 100644
 --- a/src/werkzeug/debug/__init__.py
 +++ b/src/werkzeug/debug/__init__.py
 @@ -19,9 +19,7 @@ from zlib import adler32
@@ -98,7 +98,7 @@ index 6bef30fb..a55480aa 100644
                  self.evalex
                  and cmd is not None
 diff --git a/src/werkzeug/sansio/utils.py b/src/werkzeug/sansio/utils.py
-index 14fa0ac8..48ec1bfa 100644
+index 14fa0ac88c..48ec1bfa07 100644
 --- a/src/werkzeug/sansio/utils.py
 +++ b/src/werkzeug/sansio/utils.py
 @@ -8,7 +8,7 @@ from ..exceptions import SecurityError
@@ -111,7 +111,7 @@ index 14fa0ac8..48ec1bfa 100644
  
      :param hostname: The name to check.
 diff --git a/src/werkzeug/serving.py b/src/werkzeug/serving.py
-index 859f9aac..7f6ea922 100644
+index 859f9aacb6..7f6ea922e9 100644
 --- a/src/werkzeug/serving.py
 +++ b/src/werkzeug/serving.py
 @@ -1072,9 +1072,6 @@ def run_simple(

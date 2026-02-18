@@ -470,8 +470,11 @@ class RiskClassifier:
                     if original == "critical" and f.severity in ("medium", "low", "info"):
                         f.severity = "high"
 
-        elif consensus_risk == "request_changes" and agreement_score >= 0.6:
-            # AI flagged issues: upgrade medium findings to high
+        elif consensus_risk == "request_changes":
+            # AI flagged issues: upgrade medium findings to high.
+            # No agreement threshold -- if any model raised concerns,
+            # take it seriously. Non-provable findings can only trigger
+            # CONDITIONS (never BLOCK), so this is safe for FP.
             for f in findings:
                 if f.severity == "medium":
                     f.severity = "high"

@@ -1,12 +1,12 @@
 diff --git a/CHANGES/11859.bugfix.rst b/CHANGES/11859.bugfix.rst
 new file mode 100644
-index 00000000..1efb2681
+index 000000000..1efb26813
 --- /dev/null
 +++ b/CHANGES/11859.bugfix.rst
 @@ -0,0 +1 @@
 +Removed support for ``ClientTimeout(total=0)`` to disable timeouts. Use ``None`` instead of ``0`` to disable the total timeout. Passing ``0`` now raises :exc:`ValueError` with a clear error message -- by :user:`veeceey`.
 diff --git a/aiohttp/client.py b/aiohttp/client.py
-index 26e67d49..555d5678 100644
+index 26e67d490..555d5678d 100644
 --- a/aiohttp/client.py
 +++ b/aiohttp/client.py
 @@ -240,6 +240,14 @@ class ClientTimeout:
@@ -25,7 +25,7 @@ index 26e67d49..555d5678 100644
  # 5 Minute default read timeout
  DEFAULT_TIMEOUT: Final[ClientTimeout] = ClientTimeout(total=5 * 60, sock_connect=30)
 diff --git a/tests/test_connector.py b/tests/test_connector.py
-index f73862e4..cb156cef 100644
+index f73862e4d..cb156cef8 100644
 --- a/tests/test_connector.py
 +++ b/tests/test_connector.py
 @@ -1492,7 +1492,7 @@ async def test_tcp_connector_cancel_dns_error_captured(

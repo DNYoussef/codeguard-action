@@ -1,5 +1,5 @@
 diff --git a/requirements.txt b/requirements.txt
-index 85e16aa6..e496bc72 100644
+index 85e16aa61..e496bc72e 100644
 --- a/requirements.txt
 +++ b/requirements.txt
 @@ -32,7 +32,7 @@ docutils==0.21.2

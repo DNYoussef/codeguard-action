@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 182c3e9..564d12a 100644
+index 182c3e96..564d12a2 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,4 +1,4 @@
@@ -10,7 +10,7 @@ index 182c3e9..564d12a 100644
  
 diff --git a/docs/_static/jinja-horizontal.svg b/docs/_static/jinja-horizontal.svg
 deleted file mode 100644
-index 2206568..0000000
+index 22065683..00000000
 --- a/docs/_static/jinja-horizontal.svg
 +++ /dev/null
 @@ -1,19 +0,0 @@
@@ -35,7 +35,7 @@ index 2206568..0000000
 -</svg>
 diff --git a/docs/_static/jinja-logo.svg b/docs/_static/jinja-logo.svg
 new file mode 100644
-index 0000000..ec5ded5
+index 00000000..ec5ded51
 --- /dev/null
 +++ b/docs/_static/jinja-logo.svg
 @@ -0,0 +1,11 @@
@@ -52,7 +52,7 @@ index 0000000..ec5ded5
 +</svg>
 diff --git a/docs/_static/jinja-name.svg b/docs/_static/jinja-name.svg
 new file mode 100644
-index 0000000..8f9e42b
+index 00000000..8f9e42b0
 --- /dev/null
 +++ b/docs/_static/jinja-name.svg
 @@ -0,0 +1,19 @@
@@ -77,7 +77,7 @@ index 0000000..8f9e42b
 +</svg>
 diff --git a/docs/_static/jinja-vertical.svg b/docs/_static/jinja-vertical.svg
 deleted file mode 100644
-index 08f54e6..0000000
+index 08f54e66..00000000
 --- a/docs/_static/jinja-vertical.svg
 +++ /dev/null
 @@ -1,19 +0,0 @@
@@ -101,7 +101,7 @@ index 08f54e6..0000000
 -    </defs>
 -</svg>
 diff --git a/docs/conf.py b/docs/conf.py
-index ec264ed..2b95929 100644
+index ec264ed9..2b959294 100644
 --- a/docs/conf.py
 +++ b/docs/conf.py
 @@ -50,6 +50,6 @@ html_sidebars = {
@@ -113,7 +113,7 @@ index ec264ed..2b95929 100644
  html_title = f"Jinja Documentation ({version})"
  html_show_sourcelink = False
 diff --git a/docs/index.rst b/docs/index.rst
-index 1579420..74b1149 100644
+index 15794205..74b11498 100644
 --- a/docs/index.rst
 +++ b/docs/index.rst
 @@ -3,7 +3,7 @@

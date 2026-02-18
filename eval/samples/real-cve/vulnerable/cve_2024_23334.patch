@@ -1,5 +1,5 @@
 diff --git a/aiohttp/web_urldispatcher.py b/aiohttp/web_urldispatcher.py
-index a05ac6cc..fee4f61a 100644
+index a05ac6cc3..fee4f61a1 100644
 --- a/aiohttp/web_urldispatcher.py
 +++ b/aiohttp/web_urldispatcher.py
 @@ -573,14 +573,9 @@ class StaticResource(PrefixResource):
@@ -36,7 +36,7 @@ index a05ac6cc..fee4f61a 100644
          except (ValueError, FileNotFoundError) as error:
              # relatively safe
 diff --git a/tests/test_web_urldispatcher.py b/tests/test_web_urldispatcher.py
-index c3caa4ff..716fa78f 100644
+index c3caa4ffc..716fa78fd 100644
 --- a/tests/test_web_urldispatcher.py
 +++ b/tests/test_web_urldispatcher.py
 @@ -108,97 +108,6 @@ async def test_follow_symlink(

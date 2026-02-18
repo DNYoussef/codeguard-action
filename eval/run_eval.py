@@ -125,7 +125,7 @@ def run_sample(
 
     diff_content = sample_path.read_text(encoding="utf-8")
     category = sample_path.parent.name
-    expected_flag = category == "vulnerable"
+    expected_flag = category in ("vulnerable", "introducing")
 
     # 1. Analyze (pass forced_tier so analyzer uses correct model count)
     try:
