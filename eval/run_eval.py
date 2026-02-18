@@ -21,7 +21,10 @@ import json
 import os
 import sys
 import time
-import toml
+try:
+    import tomllib as toml
+except ImportError:
+    import toml
 from collections import Counter
 from dataclasses import dataclass, asdict
 from pathlib import Path
