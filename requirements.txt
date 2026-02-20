@@ -20,3 +20,5 @@ anthropic>=0.18.0
 
 # WASM Runtime
 wasmtime>=16.0.0
+
+toml==0.10.2

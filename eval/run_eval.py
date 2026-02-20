@@ -10,6 +10,7 @@ Usage:
     python run_eval.py --tier L1                # Force L1 (1 model)
     python run_eval.py --tier L0                # Rules only, no API calls
     python run_eval.py --dataset cvefixes       # Run CVEFixes benchmark
+    python run_eval.py --dataset real-cve-intro # Introducing commits (forward diffs)
     python run_eval.py --dataset all            # All datasets
     python run_eval.py --sample sqli_01.patch   # Single sample
     python run_eval.py -v                       # Verbose per-sample output
@@ -20,13 +21,17 @@ import json
 import os
 import sys
 import time
-import tomllib
+try:
+    import tomllib as toml
+except ImportError:
+    import toml
 from collections import Counter
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
 _EVAL = Path(__file__).resolve().parent
+_MANIFEST = _EVAL / "datasets" / "real-cve-manifest.yaml"
 sys.path.insert(0, str(_ROOT))
 
 from src.analyzer import DiffAnalyzer
@@ -40,6 +45,46 @@ DEFAULT_THRESHOLD_NOISE = float(os.environ.get("CODEGUARD_EVAL_MAX_NOISE", "10.0
 
 TIER_MODEL_COUNT = {"L0": 0, "L1": 1, "L2": 2, "L3": 3, "L4": 3}
 
+# ---------------------------------------------------------------------------
+# Manifest (for real-cve / real-cve-intro metadata)
+# ---------------------------------------------------------------------------
+
+def load_manifest() -> dict[str, dict]:
+    """Load real-cve-manifest.yaml and return a dict keyed by sanitised CVE ID filename."""
+    if not _MANIFEST.exists():
+        return {}
+    try:
+        import yaml
+        data = yaml.safe_load(_MANIFEST.read_text(encoding="utf-8")) or {}
+        entries = data.get("vulnerabilities", [])
+    except ImportError:
+        # Fallback: minimal YAML parser
+        entries = _parse_manifest_fallback(_MANIFEST.read_text(encoding="utf-8"))
+    lookup: dict[str, dict] = {}
+    for e in entries:
+        cve_id = e.get("cve_id", "")
+        # filename key: cve_2024_34069.patch
+        key = cve_id.lower().replace("-", "_") + ".patch"
+        lookup[key] = e
+    return lookup
+
+
+def _parse_manifest_fallback(text: str) -> list[dict]:
+    entries: list[dict] = []
+    current: dict[str, str] = {}
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("- repo:"):
+            if current:
+                entries.append(current)
+            current = {"repo": stripped.split(":", 1)[1].strip()}
+        elif ":" in stripped and not stripped.startswith("#") and current:
+            key, val = stripped.split(":", 1)
+            current[key.strip().lstrip("- ")] = val.strip()
+    if current:
+        entries.append(current)
+    return entries
+
 # Dataset directories under eval/samples/
 DATASETS = {
     "hand-crafted": "hand-crafted",
@@ -48,6 +93,7 @@ DATASETS = {
     "juliet": "juliet",
     "castle": "castle",
     "real-cve": "real-cve",
+    "real-cve-intro": "real-cve-intro",
 }
 
 
@@ -75,6 +121,8 @@ class Result:
     forced_tier: str
     deliberation_rounds: int = 0
     early_exit: bool = False
+    cve_id: str = ""
+    introducing_reasoning: str = ""
 
     @property
     def flagged(self) -> bool:
@@ -118,6 +166,7 @@ def run_sample(
     engine: DecisionEngine,
     forced_tier: str | None = None,
     deliberate: bool = False,
+    manifest_entry: dict | None = None,
 ) -> Result:
     """Run one diff sample through the full pipeline."""
     errors = []
@@ -177,6 +226,7 @@ def run_sample(
     delib_rounds = mmr.get("deliberation_rounds", 0)
     delib_early = mmr.get("early_exit", False)
 
+    me_ = manifest_entry or {}
     return Result(
         sample=sample_path.name,
         dataset=dataset_name,
@@ -196,6 +246,8 @@ def run_sample(
         forced_tier=forced_tier or "auto",
         deliberation_rounds=delib_rounds,
         early_exit=delib_early,
+        cve_id=me_.get("cve_id", ""),
+        introducing_reasoning=me_.get("introducing_reasoning", ""),
     )
 
 
@@ -408,7 +460,7 @@ def load_api_key() -> str:
     secrets_path = _EVAL / ".codeguard" / ".secrets.toml"
     if secrets_path.exists():
         with open(secrets_path, "rb") as f:
-            data = tomllib.load(f)
+            data = toml.load(f)
         key = data.get("openrouter_api_key", "")
         if key:
             return key
@@ -473,7 +525,7 @@ def parse_args():
     p.add_argument("--dry-run", action="store_const", const="L0", dest="tier",
                     help="Alias for --tier L0 (rules only)")
     p.add_argument("--dataset", default="hand-crafted",
-                    help="Dataset to run: hand-crafted, cvefixes, juliet, castle, all")
+                    help="Dataset to run: hand-crafted, cvefixes, juliet, castle, real-cve, real-cve-intro, all")
     p.add_argument("--sample", default=None,
                     help="Run a single sample by filename")
     p.add_argument("--deliberate", action="store_true",
@@ -547,6 +599,9 @@ def main():
     print(f"Samples: {len(samples)} ({args.dataset})")
     print("=" * 60)
 
+    # Load manifest for real-cve / real-cve-intro metadata
+    manifest = load_manifest() if args.dataset in ("real-cve", "real-cve-intro", "all") else {}
+
     # Run
     results = []
     t0 = time.monotonic()
@@ -558,7 +613,8 @@ def main():
             rel = path.name
         print(f"\n[{i}/{len(samples)}] {rel}")
 
-        r = run_sample(path, ds_name, analyzer, classifier, engine, args.tier, args.deliberate)
+        manifest_entry = manifest.get(path.name)
+        r = run_sample(path, ds_name, analyzer, classifier, engine, args.tier, args.deliberate, manifest_entry)
         results.append(r)
 
         label = "OK" if r.correct else ("FP" if r.false_positive else "FN")
@@ -572,6 +628,10 @@ def main():
                 if r.early_exit:
                     delib_info += " (early-exit)"
             print(f"  AI: {r.models_used} ok, {failed} failed  consensus={r.consensus or '(none)'}  agreement={r.agreement:.2f}{delib_info}")
+        if r.cve_id:
+            print(f"  CVE: {r.cve_id}")
+            if r.introducing_reasoning and args.verbose:
+                print(f"  Intro: {r.introducing_reasoning}")
         if r.errors:
             for e in r.errors:
                 print(f"  ERROR: {e}")
