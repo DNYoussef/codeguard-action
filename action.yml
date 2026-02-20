@@ -164,7 +164,7 @@ outputs:
 
 runs:
   using: 'docker'
-  image: 'Dockerfile'
+  image: 'docker://ghcr.io/dnyoussef/codeguard-action:main'
   args:
     - ${{ inputs.risk_threshold }}
     - ${{ inputs.rubric }}
