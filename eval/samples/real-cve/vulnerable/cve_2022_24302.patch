@@ -1,5 +1,5 @@
 diff --git a/paramiko/pkey.py b/paramiko/pkey.py
-index 6794526..7865a6e 100644
+index 67945261..7865a6ea 100644
 --- a/paramiko/pkey.py
 +++ b/paramiko/pkey.py
 @@ -558,17 +558,7 @@ class PKey(object):
@@ -22,7 +22,7 @@ index 6794526..7865a6e 100644
              self._write_private_key(f, key, format, password=password)
  
 diff --git a/tests/test_pkey.py b/tests/test_pkey.py
-index d44a96a..0cc2013 100644
+index d44a96ac..0cc20133 100644
 --- a/tests/test_pkey.py
 +++ b/tests/test_pkey.py
 @@ -23,7 +23,6 @@ Some unit tests for public/private key objects.

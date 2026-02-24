@@ -1,5 +1,5 @@
 diff --git a/tornado/test/web_test.py b/tornado/test/web_test.py
-index 2c85bfb0..7e4fa313 100644
+index 2c85bfb01..7e4fa3133 100644
 --- a/tornado/test/web_test.py
 +++ b/tornado/test/web_test.py
 @@ -2004,18 +2004,16 @@ class XSRFTest(SimpleHandlerTestCase):
@@ -24,7 +24,7 @@ index 2c85bfb0..7e4fa313 100644
              self.assertEqual(response.code, 200)
 -        self.assertEqual(len(tokens_seen), 6)
 diff --git a/tornado/test/websocket_test.py b/tornado/test/websocket_test.py
-index 3233e59d..01fee72b 100644
+index 3233e59df..01fee72b2 100644
 --- a/tornado/test/websocket_test.py
 +++ b/tornado/test/websocket_test.py
 @@ -11,7 +11,6 @@ from tornado.web import Application, RequestHandler
@@ -45,7 +45,7 @@ index 3233e59d..01fee72b 100644
  try:
      from tornado import speedups
 diff --git a/tornado/util.py b/tornado/util.py
-index 05ac4e5f..a2fba779 100644
+index 05ac4e5fa..a2fba779c 100644
 --- a/tornado/util.py
 +++ b/tornado/util.py
 @@ -12,19 +12,11 @@ and `.Resolver`.
@@ -111,7 +111,7 @@ index 05ac4e5f..a2fba779 100644
      import doctest
      return doctest.DocTestSuite()
 diff --git a/tornado/web.py b/tornado/web.py
-index ed8148e1..1b618a70 100644
+index ed8148e16..1b618a70b 100644
 --- a/tornado/web.py
 +++ b/tornado/web.py
 @@ -72,6 +72,7 @@ import time
@@ -205,7 +205,7 @@ index ed8148e1..1b618a70 100644
  
      def xsrf_form_html(self):
 diff --git a/tornado/websocket.py b/tornado/websocket.py
-index ff78552c..fda231d0 100644
+index ff78552ce..fda231d0c 100644
 --- a/tornado/websocket.py
 +++ b/tornado/websocket.py
 @@ -20,6 +20,7 @@ communication between the browser and server.

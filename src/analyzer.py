@@ -972,18 +972,23 @@ Respond ONLY with the JSON object above."""
         for a in assessments:
             assessment_counts[a] = assessment_counts.get(a, 0) + 1
 
-        # Majority vote (or strictest if tie)
+        # Strictest signal wins (not majority vote).
+        # If ANY model flags request_changes, that's the consensus.
+        # Rationale: one cautious reviewer out of three should not be
+        # drowned out by two approvals on subtle vulnerability diffs.
         priority = {"request_changes": 3, "comment": 2, "approve": 1, "error": 0}
         sorted_assessments = sorted(
             assessment_counts.items(),
-            key=lambda x: (-x[1], -priority.get(x[0], 0))
+            key=lambda x: (-priority.get(x[0], 0), -x[1])
         )
         consensus_risk = sorted_assessments[0][0] if sorted_assessments else "comment"
 
-        # Agreement score
+        # Agreement score: fraction of models that chose the consensus pick.
+        # With strictest-wins, this measures how many models actually flagged
+        # the strictest signal (not the majority share).
         if len(valid_reviews) > 1:
-            max_agreement = max(assessment_counts.values())
-            agreement_score = max_agreement / len(valid_reviews)
+            consensus_count = assessment_counts.get(consensus_risk, 0)
+            agreement_score = consensus_count / len(valid_reviews)
         else:
             agreement_score = 1.0
 

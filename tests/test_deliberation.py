@@ -309,5 +309,49 @@ class TestDeliberation(unittest.TestCase):
         self.assertIn("SQL injection risk", consensus["combined_concerns"])
 
 
+    def test_consensus_strictest_wins_over_majority(self):
+        """If 2 approve + 1 request_changes, consensus = request_changes."""
+        analyzer = self._make_analyzer(3)
+        reviews = [
+            {"risk_assessment": "approve", "confidence": 0.90, "concerns": []},
+            {"risk_assessment": "approve", "confidence": 0.85, "concerns": []},
+            {"risk_assessment": "request_changes", "confidence": 0.80,
+             "concerns": ["Missing input validation"]},
+        ]
+        consensus = analyzer._calculate_consensus(reviews, False)
+
+        self.assertEqual(consensus["consensus_risk"], "request_changes",
+                         "Strictest signal should win even when outnumbered")
+        self.assertEqual(consensus["models_agreed"], 1)
+        self.assertEqual(consensus["total_models"], 3)
+
+    def test_consensus_unanimous_approve_stays_approve(self):
+        """If all models approve, consensus = approve (unchanged)."""
+        analyzer = self._make_analyzer(3)
+        reviews = [
+            {"risk_assessment": "approve", "confidence": 0.90, "concerns": []},
+            {"risk_assessment": "approve", "confidence": 0.85, "concerns": []},
+            {"risk_assessment": "approve", "confidence": 0.92, "concerns": []},
+        ]
+        consensus = analyzer._calculate_consensus(reviews, False)
+
+        self.assertEqual(consensus["consensus_risk"], "approve")
+        self.assertEqual(consensus["agreement_score"], 1.0)
+
+    def test_consensus_comment_beats_approve(self):
+        """If 2 approve + 1 comment, consensus = comment (stricter)."""
+        analyzer = self._make_analyzer(3)
+        reviews = [
+            {"risk_assessment": "approve", "confidence": 0.90, "concerns": []},
+            {"risk_assessment": "approve", "confidence": 0.85, "concerns": []},
+            {"risk_assessment": "comment", "confidence": 0.70,
+             "concerns": ["Unusual pattern"]},
+        ]
+        consensus = analyzer._calculate_consensus(reviews, False)
+
+        self.assertEqual(consensus["consensus_risk"], "comment",
+                         "Comment should beat approve (stricter signal)")
+
+
 if __name__ == "__main__":
     unittest.main()

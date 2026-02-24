@@ -1,5 +1,5 @@
 diff --git a/requirements/constraints.txt b/requirements/constraints.txt
-index 2f83390a..b2c697a2 100644
+index 2f83390aa..b2c697a26 100644
 --- a/requirements/constraints.txt
 +++ b/requirements/constraints.txt
 @@ -275,7 +275,7 @@ uvloop==0.21.0 ; platform_system != "Windows"
@@ -12,7 +12,7 @@ index 2f83390a..b2c697a2 100644
  wait-for-it==2.3.0
      # via -r requirements/test-common.in
 diff --git a/requirements/dev.txt b/requirements/dev.txt
-index da68c301..d427e089 100644
+index da68c3019..d427e0890 100644
 --- a/requirements/dev.txt
 +++ b/requirements/dev.txt
 @@ -265,7 +265,7 @@ uvloop==0.21.0 ; platform_system != "Windows" and implementation_name == "cpytho
@@ -25,7 +25,7 @@ index da68c301..d427e089 100644
  wait-for-it==2.3.0
      # via -r requirements/test-common.in
 diff --git a/requirements/lint.txt b/requirements/lint.txt
-index a87b5490..26ee7273 100644
+index a87b54907..26ee72736 100644
 --- a/requirements/lint.txt
 +++ b/requirements/lint.txt
 @@ -123,7 +123,7 @@ uvloop==0.21.0 ; platform_system != "Windows"

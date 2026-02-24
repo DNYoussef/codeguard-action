@@ -1,5 +1,5 @@
 diff --git a/.readthedocs.yaml b/.readthedocs.yaml
-index 865c685..5196b20 100644
+index 865c6859..5196b205 100644
 --- a/.readthedocs.yaml
 +++ b/.readthedocs.yaml
 @@ -9,5 +9,6 @@ python:
@@ -10,7 +10,7 @@ index 865c685..5196b20 100644
    builder: dirhtml
    fail_on_warning: true
 diff --git a/README.md b/README.md
-index d1a6870..182c3e9 100644
+index d1a6870d..182c3e96 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,3 +1,5 @@
@@ -21,7 +21,7 @@ index d1a6870..182c3e9 100644
  Jinja is a fast, expressive, extensible templating engine. Special
 diff --git a/artwork/jinjalogo.svg b/artwork/jinjalogo.svg
 deleted file mode 100644
-index 0bc9ea4..0000000
+index 0bc9ea4e..00000000
 --- a/artwork/jinjalogo.svg
 +++ /dev/null
 @@ -1,132 +0,0 @@
@@ -159,7 +159,7 @@ index 0bc9ea4..0000000
 -</svg>
 diff --git a/docs/_static/jinja-horizontal.svg b/docs/_static/jinja-horizontal.svg
 new file mode 100644
-index 0000000..2206568
+index 00000000..22065683
 --- /dev/null
 +++ b/docs/_static/jinja-horizontal.svg
 @@ -0,0 +1,19 @@
@@ -184,7 +184,7 @@ index 0000000..2206568
 +</svg>
 diff --git a/docs/_static/jinja-icon.svg b/docs/_static/jinja-icon.svg
 new file mode 100644
-index 0000000..0700e8d
+index 00000000..0700e8d8
 --- /dev/null
 +++ b/docs/_static/jinja-icon.svg
 @@ -0,0 +1,11 @@
@@ -201,15 +201,15 @@ index 0000000..0700e8d
 +</svg>
 diff --git a/docs/_static/jinja-logo-sidebar.png b/docs/_static/jinja-logo-sidebar.png
 deleted file mode 100644
-index 455b4c3..0000000
+index 455b4c3c..00000000
 Binary files a/docs/_static/jinja-logo-sidebar.png and /dev/null differ
 diff --git a/docs/_static/jinja-logo.png b/docs/_static/jinja-logo.png
 deleted file mode 100644
-index 7f8ca5b..0000000
+index 7f8ca5bb..00000000
 Binary files a/docs/_static/jinja-logo.png and /dev/null differ
 diff --git a/docs/_static/jinja-vertical.svg b/docs/_static/jinja-vertical.svg
 new file mode 100644
-index 0000000..08f54e6
+index 00000000..08f54e66
 --- /dev/null
 +++ b/docs/_static/jinja-vertical.svg
 @@ -0,0 +1,19 @@
@@ -233,7 +233,7 @@ index 0000000..08f54e6
 +    </defs>
 +</svg>
 diff --git a/docs/conf.py b/docs/conf.py
-index 280610e..ec264ed 100644
+index 280610e5..ec264ed9 100644
 --- a/docs/conf.py
 +++ b/docs/conf.py
 @@ -49,7 +49,7 @@ html_sidebars = {
@@ -247,7 +247,7 @@ index 280610e..ec264ed 100644
  html_title = f"Jinja Documentation ({version})"
  html_show_sourcelink = False
 diff --git a/docs/index.rst b/docs/index.rst
-index 4ce2071..1579420 100644
+index 4ce20719..15794205 100644
 --- a/docs/index.rst
 +++ b/docs/index.rst
 @@ -3,9 +3,9 @@
