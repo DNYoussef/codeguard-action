@@ -233,4 +233,4 @@ SUPPORT
 -------
 
 Issues: https://github.com/DNYoussef/codeguard-action/issues
-Email: david@guardspine.dev
+Email: team@guardspine.ai
