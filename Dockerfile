@@ -11,11 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage everything into /staging so the final image is a single COPY
 RUN mkdir -p /staging/usr/bin \
-    /staging/usr/lib/git-core \
-    /staging/usr/share/git-core \
-    /staging/usr/local/lib/python3.11/site-packages \
-    /staging/usr/local/bin \
-    /staging/action && \
+            /staging/usr/lib/git-core \
+            /staging/usr/share/git-core \
+            /staging/usr/local/lib/python3.11/site-packages \
+            /staging/usr/local/bin \
+            /staging/action && \
     cp /usr/bin/git /staging/usr/bin/ && \
     cp -r /usr/lib/git-core/* /staging/usr/lib/git-core/ && \
     cp -r /usr/share/git-core/* /staging/usr/share/git-core/ && \
