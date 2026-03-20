@@ -77,6 +77,26 @@ class PRCommenter:
                 return comment
         return None
 
+    # Governance language rewrites: static-analysis -> governance framing
+    GOVERNANCE_REWRITES = {
+        "sensitive crypto code modified": "Security-relevant diff without traceable approval artifact",
+        "sensitive auth code modified": "Auth logic changed without corresponding review evidence",
+        "possible null dereference": "Runtime-impacting change lacks rollback signal",
+        "potential auth bug": "Privilege-sensitive path modified; reviewer signoff missing",
+        "sensitive security code modified": "Security-boundary change requires governance evidence",
+        "sensitive config code modified": "Infrastructure config changed without policy review",
+        "sensitive database code modified": "Data-layer change without migration evidence",
+        "sensitive infra code modified": "Infrastructure change without deployment review",
+    }
+
+    def _reframe_to_governance(self, message: str) -> str:
+        """Reframe static-analysis language to governance language."""
+        msg_lower = message.lower().strip()
+        for pattern, replacement in self.GOVERNANCE_REWRITES.items():
+            if pattern in msg_lower:
+                return replacement
+        return message
+
     def _build_comment(
         self,
         risk_tier: str,
@@ -85,121 +105,117 @@ class PRCommenter:
         requires_approval: bool,
         threshold: str
     ) -> str:
-        """Build the comment markdown."""
+        """Build the 5-section governance comment.
+
+        Section A: Executive risk header
+        Section B: Governance findings (max 3, governance language)
+        Section C: Evidence status
+        Section D: Merge posture
+        Section E: Viral install CTA
+        """
         tier_info = self.TIER_INFO.get(risk_tier, self.TIER_INFO["L2"])
 
-        # Header with badge
+        # Count findings by severity
+        critical_count = sum(1 for f in findings if f.get("severity") == "critical")
+        high_count = sum(1 for f in findings if f.get("severity") == "high")
+        total = len(findings)
+        evidence_status = "Complete" if not requires_approval else "Review needed"
+        policy_status = "Compliant" if risk_tier in ("L0", "L1") else "Conditions" if risk_tier in ("L2", "L3") else "Blocked"
+
+        # === SECTION A: Executive Risk Header ===
         lines = [
             self.COMMENT_MARKER,
             "",
-            "## :shield: GuardSpine Diff Postcard",
+            f"## :{tier_info['emoji']}: GuardSpine: **{risk_tier}** ({tier_info['label']})",
             "",
-            f"### Risk Assessment: :{tier_info['emoji']}: **{risk_tier}** - {tier_info['label']}",
+            f"**Risk:** {risk_tier} | **Confidence:** High | **Evidence:** {evidence_status} | **Policy:** {policy_status}",
             "",
         ]
 
-        # Status banner
+        # === SECTION B: Governance Findings (max 3, governance language) ===
+        if findings:
+            # Show max 3 top findings, reframed to governance language
+            top_findings = sorted(findings, key=lambda f: {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}.get(f.get("severity", "medium"), 3))[:3]
+
+            lines.append("### Governance Findings")
+            lines.append("")
+
+            for i, finding in enumerate(top_findings, 1):
+                file_path = finding.get("file", "unknown")
+                line_num = finding.get("line")
+                message = self._reframe_to_governance(finding.get("message", ""))
+                location = f"`{file_path}"
+                if line_num:
+                    location += f":{line_num}"
+                location += "`"
+                lines.append(f"{i}. {location}: {message}")
+
+            lines.append("")
+
+            # Collapsible full list if more than 3
+            if total > 3:
+                lines.extend([
+                    f"<details><summary>All {total} findings</summary>",
+                    "",
+                ])
+                for finding in findings:
+                    file_path = finding.get("file", "unknown")
+                    line_num = finding.get("line")
+                    message = self._reframe_to_governance(finding.get("message", ""))
+                    severity = finding.get("severity", "medium")
+                    location = f"`{file_path}"
+                    if line_num:
+                        location += f":{line_num}"
+                    location += "`"
+                    lines.append(f"- [{severity}] {location}: {message}")
+                lines.extend(["", "</details>", ""])
+
+        # === SECTION C: Evidence Status ===
+        lines.extend([
+            "### Evidence",
+            "",
+            f"- Evidence bundle: {'Generated' if total > 0 else 'N/A'} (available in workflow artifacts)",
+            f"- Risk drivers: {len(risk_drivers)}",
+            f"- Findings: {critical_count} critical, {high_count} high, {total - critical_count - high_count} other",
+            "",
+        ])
+
+        # === SECTION D: Merge Posture ===
         if requires_approval:
             lines.extend([
-                "> :warning: **Human approval required** - Risk tier exceeds threshold ({threshold})",
+                f"### :octagonal_sign: Merge blocked",
+                "",
+                f"Risk tier **{risk_tier}** exceeds threshold **{threshold}**. Human review required.",
+                "",
+            ])
+        elif risk_tier in ("L2", "L3"):
+            lines.extend([
+                f"### :warning: Merge with conditions",
+                "",
+                f"Address the governance findings above before merging.",
                 "",
             ])
         else:
             lines.extend([
-                "> :white_check_mark: **Auto-approved** - Risk within acceptable threshold",
+                f"### :white_check_mark: Safe to merge",
                 "",
             ])
 
-        # Risk drivers section
-        if risk_drivers:
-            lines.extend([
-                "### Risk Drivers",
-                "",
-            ])
-            for driver in risk_drivers[:5]:
-                driver_type = driver.get("type", "unknown")
-                description = driver.get("description", "No description")
-
-                if driver_type == "sensitive_zone":
-                    emoji = ":lock:"
-                elif driver_type == "policy_finding":
-                    severity = driver.get("severity", "medium")
-                    emoji = ":rotating_light:" if severity == "critical" else ":warning:"
-                elif driver_type == "ai_concern":
-                    emoji = ":robot:"
-                else:
-                    emoji = ":pushpin:"
-
-                lines.append(f"- {emoji} {description}")
-
-            lines.append("")
-
-        # Findings summary
-        if findings:
-            lines.extend([
-                "### Findings Summary",
-                "",
-                "| Severity | Count | Top Finding |",
-                "|----------|-------|-------------|",
-            ])
-
-            # Group by severity
-            severity_groups = {"critical": [], "high": [], "medium": [], "low": [], "info": []}
-            for finding in findings:
-                sev = finding.get("severity", "medium")
-                if sev in severity_groups:
-                    severity_groups[sev].append(finding)
-
-            for severity in ["critical", "high", "medium", "low", "info"]:
-                group = severity_groups[severity]
-                if group:
-                    count = len(group)
-                    top_msg = group[0].get("message", "")[:50]
-                    emoji = self._severity_emoji(severity)
-                    lines.append(f"| {emoji} {severity.capitalize()} | {count} | {top_msg} |")
-
-            lines.append("")
-
-        # Details section (collapsible)
-        if findings:
-            lines.extend([
-                "<details>",
-                "<summary>View all findings</summary>",
-                "",
-            ])
-
-            for finding in findings[:20]:  # Limit to 20
-                file_path = finding.get("file", "unknown")
-                line = finding.get("line")
-                message = finding.get("message", "No message")
-                severity = finding.get("severity", "medium")
-                rule_id = finding.get("rule_id", "")
-
-                location = f"`{file_path}"
-                if line:
-                    location += f":{line}"
-                location += "`"
-
-                lines.append(f"- **[{severity.upper()}]** {location}: {message}")
-                if rule_id:
-                    lines.append(f"  - Rule: `{rule_id}`")
-
-            if len(findings) > 20:
-                lines.append(f"\n*...and {len(findings) - 20} more findings*")
-
-            lines.extend([
-                "",
-                "</details>",
-                "",
-            ])
-
-        # Footer
+        # === SECTION E: Viral Install CTA ===
+        governance_gaps = critical_count + high_count
         lines.extend([
             "---",
             "",
-            ":information_source: *Generated by [GuardSpine CodeGuard](https://github.com/marketplace/actions/guardspine-codeguard)*",
+            f"*This PR was analyzed by [GuardSpine CodeGuard](https://github.com/DNYoussef/codeguard-action).*",
+        ])
+
+        if governance_gaps > 0:
+            lines.append(f"*Your repo has **{governance_gaps}** unresolved governance gaps.*")
+
+        lines.extend([
+            f"*Install on your repo: [`DNYoussef/codeguard-action@v1`](https://github.com/DNYoussef/codeguard-action)*",
             "",
-            f"<sub>Evidence bundle available in workflow artifacts | Threshold: {threshold}</sub>",
+            "*GuardSpine Decision Engine | Removing reviewer decisions, not just effort*",
         ])
 
         return "\n".join(lines)

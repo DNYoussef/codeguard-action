@@ -266,7 +266,7 @@ class TestRiskDriverLocations(unittest.TestCase):
 # ===========================================================================
 
 class TestPRCommentRendering(unittest.TestCase):
-    """Fix #3: PR comment Diff Postcard renders correctly with locations."""
+    """Fix #3: PR comment governance template renders correctly with locations."""
 
     def _make_commenter(self):
         gh = Github("fake-token")
@@ -299,9 +299,9 @@ class TestPRCommentRendering(unittest.TestCase):
         )
         self.assertEqual(len(pr._comments), 1)
         body = pr._comments[0].body
-        self.assertIn("GuardSpine Diff Postcard", body)
+        self.assertIn("GuardSpine:", body)
         self.assertIn("L3", body)
-        self.assertIn("Human approval required", body)
+        self.assertIn("Merge blocked", body)
         self.assertIn("src/auth.py:42", body)
 
     def test_comment_update_replaces_existing(self):
@@ -615,7 +615,7 @@ class TestFullPipeline(unittest.TestCase):
         )
         self.assertEqual(len(pr._comments), 1)
         body = pr._comments[0].body
-        self.assertIn("GuardSpine Diff Postcard", body)
+        self.assertIn("GuardSpine:", body)
         self.assertIn(tier, body)
 
         # 5. SARIF export
