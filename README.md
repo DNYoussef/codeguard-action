@@ -192,7 +192,7 @@ Runtime dependencies (`requirements.txt`):
 | `wasmtime>=16.0.0` | WASM runtime for PII-Shield local mode |
 | `toml==0.10.2` | TOML parsing |
 
-The decision engine (`src/decision_engine.py`) is vendored from `guardspine-product`. It is kept vendored because the Docker image runs without access to private pip indexes. The provenance header in the file tracks the sync date. Re-sync manually when the upstream decision logic changes.
+The decision engine (`src/decision_engine.py`) is the canonical copy. It was originally developed in `guardspine-product`, which was frozen on 2026-04-04. There is no upstream to sync from. This file is self-contained (depends only on stdlib + yaml) and is owned by this repo.
 
 ---
 
@@ -762,7 +762,7 @@ codeguard-action/
   src/
     analyzer.py           Diff parser, sensitive zone detection, multi-model AI review
     risk_classifier.py    Risk tier classification (L0-L4), rubric evaluation
-    decision_engine.py    Findings -> verdict (vendored from guardspine-product)
+    decision_engine.py    Findings -> verdict (canonical copy, self-contained)
     bundle_generator.py   Evidence bundle creation (guardspine-spec v0.2.0)
     pr_commenter.py       Decision Card rendering and posting
     sarif_exporter.py     SARIF output for GitHub Security tab
