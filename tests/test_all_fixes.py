@@ -669,7 +669,7 @@ class TestFullPipeline(unittest.TestCase):
 
 
 class TestVerdictCompatAlias(unittest.TestCase):
-    """Reviewer-style verdict alias for downstream workflows that gate on outputs.verdict.
+    """Stable workflow verdict alias for downstream workflows that gate on outputs.verdict.
     See W2.2.5 audit finding: GuardSpine codeguard.yml referenced outputs.verdict since
     inception, but the action never emitted it. This alias closes that gap with a stable
     semantic mapping."""
@@ -677,8 +677,8 @@ class TestVerdictCompatAlias(unittest.TestCase):
     def test_merge_maps_to_approve(self):
         self.assertEqual(map_decision_to_verdict("merge"), "APPROVE")
 
-    def test_merge_with_conditions_maps_to_request_changes(self):
-        self.assertEqual(map_decision_to_verdict("merge-with-conditions"), "REQUEST_CHANGES")
+    def test_merge_with_conditions_maps_to_conditions(self):
+        self.assertEqual(map_decision_to_verdict("merge-with-conditions"), "CONDITIONS")
 
     def test_block_maps_to_block(self):
         self.assertEqual(map_decision_to_verdict("block"), "BLOCK")

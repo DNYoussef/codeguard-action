@@ -872,15 +872,14 @@ def _fetch_pr_diff_paginated(pr, token: str | None) -> str:
 
 _VERDICT_MAP = {
     "merge": "APPROVE",
-    "merge-with-conditions": "REQUEST_CHANGES",
+    "merge-with-conditions": "CONDITIONS",
     "block": "BLOCK",
 }
 
 
 def map_decision_to_verdict(decision: str) -> str:
-    """Map decision engine verdict (merge/merge-with-conditions/block) to reviewer-style verdict
-    (APPROVE/REQUEST_CHANGES/BLOCK). Stable alias for downstream workflows that gate on
-    outputs.verdict."""
+    """Map decision engine verdict (merge/merge-with-conditions/block) to the stable workflow
+    alias consumed by downstream repos (APPROVE/CONDITIONS/BLOCK)."""
     return _VERDICT_MAP.get(decision, "UNKNOWN")
 
 

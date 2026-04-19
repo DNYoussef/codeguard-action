@@ -164,7 +164,7 @@ outputs:
   decision:
     description: 'Decision engine verdict: merge, merge-with-conditions, or block'
   verdict:
-    description: 'Reviewer-style verdict (APPROVE | REQUEST_CHANGES | BLOCK) mapped from decision. Stable alias for workflows that gate on outputs.verdict.'
+    description: 'Stable verdict alias (APPROVE | CONDITIONS | BLOCK) mapped from decision for workflows that gate on outputs.verdict.'
   bundle_id:
     description: 'Evidence bundle identifier (empty string if generate_bundle is false). Stable alias for workflows that reference outputs.bundle_id.'
   merged:
