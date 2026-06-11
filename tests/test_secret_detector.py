@@ -178,6 +178,26 @@ class TestWhitelistSuppressesFalsePositives(unittest.TestCase):
                 f"64-hex in a secret context must produce a finding: {line[:20]}",
             )
 
+    def test_uuid_in_identifier_context_still_whitelisted(self):
+        u = "12345678-1234-1234-1234-123456789abc"
+        for line in ("request_id = '" + u + "'",
+                     "trace_id: '" + u + "'",
+                     "uuid = '" + u + "'"):
+            self.assertEqual(detect([(1, line)]), [],
+                             f"identifier-context UUID must stay whitelisted: {line[:18]}")
+
+    def test_uuid_in_secret_context_is_NOT_whitelisted(self):
+        # Same class as the hex hole: a UUID as a credential value must not be
+        # globally suppressed just because it is a UUID.
+        u = "12345678-1234-1234-1234-123456789abc"
+        for line in ("api_key: '" + u + "'",
+                     "password = '" + u + "'"):
+            hits = detect([(1, line)])
+            self.assertTrue(
+                hits,
+                f"UUID in a secret context must produce a finding: {line[:18]}",
+            )
+
     def test_structural_format_is_not_suppressed_by_whitelist(self):
         # A PEM is always a secret even on an otherwise innocuous line.
         line = "example_key = " + make_pem_header()

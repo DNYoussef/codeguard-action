@@ -84,6 +84,9 @@ _VULNERABLE = {
     # .yaml (where P2 suppresses topic zones) must NOT be a full miss. It is a
     # generic credential -> conditions (flagged), not block.
     "hex_api_key_in_yaml": ("config/app.yaml", ['  api_key: "' + sha256() + '"']),
+    # Same class as the hex hole, for UUIDs: a UUID credential value in a
+    # .yaml must condition (flag), not be a full miss.
+    "uuid_api_key_in_yaml": ("config/svc.yaml", ['  api_key: "' + uuid() + '"']),
 }
 
 # CLEAN: known-safe high-entropy values placed to produce ZERO findings.

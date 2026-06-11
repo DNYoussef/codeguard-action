@@ -115,6 +115,15 @@ _SAFE_HEX_CONTEXT = re.compile(
     r"(?i)\b(?:hash|commit|checksum|sha\d*|digest|integrity|etag|revision|"
     r"oid|blob|sri|fingerprint|content[_-]?id|object[_-]?id)\b"
 )
+# A UUID is safe ONLY as an identifier (request_id, trace_id, uuid, ...). Same
+# hole as the hex whitelist: a blanket UUID suppression ate the detector
+# signal for `api_key: "<uuid>"` in a .yaml (P2 topic scoping off). A UUID in a
+# secret context is no longer suppressed and at least conditions.
+_SAFE_UUID_CONTEXT = re.compile(
+    r"(?i)\b(?:uuid|guid|request[_-]?id|trace[_-]?id|correlation[_-]?id|"
+    r"span[_-]?id|session[_-]?id|transaction[_-]?id|message[_-]?id|"
+    r"event[_-]?id|run[_-]?id|job[_-]?id)\b"
+)
 _PLACEHOLDER = re.compile(
     r"(?i)(?:x{4,}|<[^>]+>|your[_-]|example|changeme|dummy|placeholder|"
     r"redacted|sample|test[_-]?key|fake|\bnull\b|\bnone\b|0{8,})"
@@ -150,7 +159,9 @@ def _is_whitelisted(token: str, line: str) -> bool:
     """True when *token* on *line* is a known-safe high-entropy value."""
     if _HASH_FIELD.search(line) or _LOCK_INTEGRITY.search(line):
         return True
-    if _UUID.fullmatch(token) or _UUID.search(line):
+    # A UUID is safe ONLY in an identifier context; in a secret context
+    # (api_key/password/...) it must not be suppressed.
+    if (_UUID.fullmatch(token) or _UUID.search(line)) and _SAFE_UUID_CONTEXT.search(line):
         return True
     # A bare 64-hex value is safe ONLY in a hash/commit/checksum context.
     # In a secret context (api_key/password/...) it must NOT be suppressed.
