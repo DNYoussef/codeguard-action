@@ -77,22 +77,30 @@ _JWT = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-
 
 # AWS: an access-key-id ALONE is an identifier, not a secret (amendment 4).
 _AWS_KEY_ID = re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b")
-# An AWS *secret* key in an aws-secret context IS provable.
+# An AWS *secret* key in an aws-secret context IS provable. Quotes optional:
+# real .env/YAML secrets are commonly UNQUOTED, so the value is bounded by a
+# negative lookahead rather than requiring a closing quote.
 _AWS_SECRET_CTX = re.compile(
-    r"aws.{0,24}secret.{0,24}[:=]\s*['\"]([A-Za-z0-9/+=]{40})['\"]",
+    r"aws.{0,24}secret.{0,24}[:=]\s*['\"]?([A-Za-z0-9/+=]{40})(?![A-Za-z0-9/+=])",
     re.IGNORECASE,
 )
 
-# Generic hardcoded credential assignment: name = "value"
+# Generic hardcoded credential assignment: name = value. The value may be
+# quoted (group 1) or UNQUOTED (group 2, env/YAML scalar -- bounded by
+# whitespace / comment / end).
 _GENERIC_ASSIGN = re.compile(
     r"""(?ix)\b(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|
         client[_-]?secret|auth[_-]?token|private[_-]?key)\b
-        \s*[:=]\s*['"]([^'"]{8,})['"]""",
+        \s*[:=]\s*
+        (?:["']([^"']{8,})["']|([^\s"'#]{8,}))""",
     re.VERBOSE,
 )
 
 # Quoted token-ish literals for the entropy tier.
 _QUOTED_TOKEN = re.compile(r"['\"]([A-Za-z0-9/+_=\-]{16,})['\"]")
+# Unquoted value after an assignment (env/YAML scalar): KEY=value / KEY: value.
+# Excludes quotes (handled by _QUOTED_TOKEN) and stops at whitespace/comment.
+_UNQUOTED_VALUE = re.compile(r"[:=]\s*([A-Za-z0-9/+_=\-]{16,})(?=\s|#|$)")
 
 # --------------------------------------------------------------------------
 # Whitelist: known-safe high-entropy values that must NEVER be flagged.
@@ -162,7 +170,11 @@ def _is_placeholder(token: str) -> bool:
 # EXTRACTS the current key directly, so it is agnostic to how assignments are
 # separated -- semicolons, commas, or bare whitespace (shell/env style:
 # `COMMIT="x" API_KEY="x"`). Enumerating separators missed the whitespace case.
-_KEY_BEFORE_VALUE = re.compile(r"([A-Za-z_][\w.\-]*)\s*[:=]\s*['\"]?\s*$")
+# Optional closing quote after the key handles JSON object keys
+# (`"commit": "<hex>"`) as well as bare keys (`commit = "<hex>"`).
+# Optional closing quote after the key handles JSON object keys
+# (`"commit": "<hex>"`) as well as bare keys (`commit = "<hex>"`).
+_KEY_BEFORE_VALUE = re.compile(r"([A-Za-z_][\w.\-]*)['\"]?\s*[:=]\s*['\"]?\s*$")
 
 
 def _immediate_key(prefix: str) -> str:
@@ -232,8 +244,10 @@ def scan_line(text: str) -> list[_Candidate]:
         out.append(_Candidate("jwt", "high", False, "JSON Web Token"))
 
     for m in _GENERIC_ASSIGN.finditer(text):
-        val = m.group(1)
-        if _is_whitelisted(val, _immediate_key(text[:m.start(1)])):
+        # group 1 = quoted value, group 2 = unquoted (env/YAML) value.
+        gi = 1 if m.group(1) is not None else 2
+        val = m.group(gi)
+        if _is_whitelisted(val, _immediate_key(text[:m.start(gi)])):
             continue
         if len(val) >= _GENERIC_MIN_LEN and shannon_entropy(val) >= _GENERIC_MIN_BITS:
             # CONDITION only (provable=False): a name=value assignment is
@@ -244,15 +258,16 @@ def scan_line(text: str) -> list[_Candidate]:
             out.append(_Candidate("hardcoded_credential", "high", False,
                                   "hardcoded credential assignment"))
 
-    for m in _QUOTED_TOKEN.finditer(text):
-        tok = m.group(1)
-        if _is_whitelisted(tok, _immediate_key(text[:m.start(1)])):
-            continue
-        if len(tok) >= _ENTROPY_MIN_LEN and shannon_entropy(tok) >= _ENTROPY_MIN_BITS:
-            # Entropy alone is a CONDITION, never a block (provable=False);
-            # promotion is gated on the P3c eval corpus.
-            out.append(_Candidate("high_entropy", "high", False,
-                                  "high-entropy literal"))
+    for pat in (_QUOTED_TOKEN, _UNQUOTED_VALUE):
+        for m in pat.finditer(text):
+            tok = m.group(1)
+            if _is_whitelisted(tok, _immediate_key(text[:m.start(1)])):
+                continue
+            if len(tok) >= _ENTROPY_MIN_LEN and shannon_entropy(tok) >= _ENTROPY_MIN_BITS:
+                # Entropy alone is a CONDITION, never a block (provable=False);
+                # promotion is gated on the P3c eval corpus.
+                out.append(_Candidate("high_entropy", "high", False,
+                                      "high-entropy literal"))
 
     return out
 

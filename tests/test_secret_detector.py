@@ -51,6 +51,44 @@ def make_jwt() -> str:
     return "ey" + "J" + _varied(12) + "." + "ey" + "J" + _varied(14) + "." + _varied(20)
 
 
+class TestUnquotedAndJsonKeys(unittest.TestCase):
+    """Real .env/YAML secrets are commonly UNQUOTED, and JSON keys are quoted.
+    Both must be handled (P3 core claim: a credential anywhere is detected)."""
+
+    def test_unquoted_aws_secret_blocks(self):
+        for line in ("AWS_SECRET_ACCESS_KEY=" + _varied(40),     # env, no quotes
+                     "aws_secret_access_key: " + _varied(40)):    # yaml scalar
+            hits = detect([(1, line)])
+            self.assertTrue(any(h.kind == "aws_secret_key" and h.provable
+                                for h in hits),
+                            f"unquoted AWS secret must be provable: {line[:24]}")
+
+    def test_unquoted_aws_pair_blocks(self):
+        line = "AWS_ACCESS_KEY_ID=" + make_aws_id() + " AWS_SECRET_ACCESS_KEY=" + _varied(40)
+        hits = detect([(1, line)])
+        self.assertTrue(any(h.kind in ("aws_credential_pair", "aws_secret_key")
+                            and h.provable for h in hits),
+                        "unquoted AWS id+secret must produce a provable block")
+
+    def test_unquoted_generic_credential_conditions(self):
+        for line in ("API_KEY=" + _varied(24),               # env high-entropy
+                     "api_key: " + ("abcdef0123456789" * 4)):  # yaml 64hex
+            hits = detect([(1, line)])
+            self.assertTrue(hits, f"unquoted credential must flag: {line[:18]}")
+            self.assertFalse(any(h.provable for h in hits),
+                             "generic/entropy stays non-provable (condition)")
+
+    def test_quoted_json_safe_keys_do_not_flag(self):
+        # `"commit": "<hex>"` and `"content_hash": "<hex>"` are safe -> no
+        # finding (the key parse must accept a quoted JSON key).
+        h = "abcdef0123456789" * 4
+        for line in ('"commit": "' + h + '"',
+                     '"content_hash": "' + h + '"',
+                     'commit: ' + h):  # unquoted yaml safe key
+            self.assertEqual(detect([(1, line)]), [],
+                             f"safe key (json/yaml) must not flag: {line[:18]}")
+
+
 class TestStructuralBlockingFormats(unittest.TestCase):
     """Tier A known credential formats -> critical, provable=True (can block)."""
 

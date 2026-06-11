@@ -98,6 +98,12 @@ _VULNERABLE = {
     # Env / whitespace-separated multi-assignment (no `;`): same bypass class.
     "hex_env_assign_smuggle": ("deploy/env.sh", ['COMMIT="' + sha256() + '" API_KEY="' + sha256() + '"']),
     "uuid_env_assign_smuggle": ("deploy/env2.sh", ['REQUEST_ID="' + uuid() + '" API_KEY="' + uuid() + '"']),
+    # UNQUOTED secrets (real .env/YAML are commonly unquoted) -> must block.
+    "aws_secret_unquoted_env": ("deploy/.env", ["AWS_SECRET_ACCESS_KEY=" + _varied(40)]),
+    "aws_secret_unquoted_yaml": ("config/aws.yaml", ["  aws_secret_access_key: " + _varied(40)]),
+    "aws_pair_unquoted_env": ("deploy/aws.env", ["AWS_ACCESS_KEY_ID=AKIAABCDEFGHIJ123456 AWS_SECRET_ACCESS_KEY=" + _varied(40)]),
+    # UNQUOTED generic credential -> at least conditions.
+    "generic_unquoted_env": ("deploy/svc.env", ["API_KEY=" + _varied(28)]),
 }
 
 # CLEAN: known-safe high-entropy values placed to produce ZERO findings.
@@ -111,6 +117,9 @@ _CLEAN = {
     "lockfile_integrity": ("package-lock.yaml", ['  integrity: "sha512-' + _varied(40) + '"']),
     "placeholder_in_config": ("config/app.yaml", ['  api_key: "your-api-key-here"']),
     "password_word_in_comment": ("src/auth_doc.py", ["    # the password is read from the environment, never hardcoded"]),
+    # Quoted JSON keys for safe values must parse -> no false condition.
+    "json_commit_key": ("meta/build.json", ['  "commit": "' + sha256() + '",']),
+    "json_content_hash_key": ("meta/bundle.json", ['  "content_hash": "' + sha256() + '"']),
 }
 
 
