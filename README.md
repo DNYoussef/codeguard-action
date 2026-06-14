@@ -2,7 +2,7 @@
 
 **AI-powered code governance with cryptographically verifiable evidence bundles**
 
-[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-GuardSpine%20GuardSpine Code-blue?logo=github)](https://github.com/marketplace/actions/guardspine-codeguard)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-GuardSpine%20Code-blue?logo=github)](https://github.com/marketplace/actions/guardspine-code)
 [![License: BSL 1.1](https://img.shields.io/badge/license-BSL%201.1-blue.svg)](LICENSE)
 
 ---
