@@ -657,7 +657,7 @@ fi
 
 ## PII-Shield Integration
 
-GuardSpine Code integrates [PII-Shield](https://github.com/aragossa/pii-shield) to prevent secrets and personally identifiable information from leaking into AI prompts, PR comments, and evidence bundles.
+GuardSpine Code integrates [PII-Shield](https://github.com/pii-shield/pii-shield) to prevent secrets and personally identifiable information from leaking into AI prompts, PR comments, and evidence bundles.
 
 ### Why PII-Shield Matters
 
@@ -674,7 +674,7 @@ PII-Shield solves this by detecting high-entropy strings using **Shannon entropy
 
 ### What PII-Shield Is
 
-[PII-Shield](https://github.com/aragossa/pii-shield) is a Go-based Kubernetes sidecar created by [Ilya Ploskovitov](https://github.com/aragossa). It provides:
+[PII-Shield](https://github.com/pii-shield/pii-shield) is a Go-based Kubernetes sidecar created by [Ilya Ploskovitov](https://github.com/aragossa). It provides:
 
 - **Entropy-based secret detection** -- no regex lists to maintain, catches novel secret formats
 - **Deterministic HMAC redaction** -- same input always produces same token (keyed by org-wide salt)
